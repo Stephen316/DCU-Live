@@ -1,11 +1,11 @@
 import React, { ReactNode, Ref } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { kindLabel, activitySummary } from '../../core/activityCode';
 import { ClassHighlight, Deadline, deadlineKindLabel, displayTitle, highlightReason } from '../../core/deadline';
 import { locationDisplay, parsedLocations } from '../../core/roomLocation';
 import { GridHours, WeekGrid as Placement, PlacedEvent } from '../../core/schedule';
 import { addDays, formatTime, formatWeekdayDayMonth, isSameDay, isWeekend, startOfDay, startOfWeek, weekdayShort } from '../../core/time';
-import { compactTitleOf, isOnline, shortTitleOf, staffText, TimetableEvent, titleOf } from '../../core/timetableEvent';
+import { compactTitleOf, eventTypeLabel, isOnline, shortTitleOf, staffText, TimetableEvent, titleOf } from '../../core/timetableEvent';
 import { DeadlineMark, Hatch, Icon, IconName, Txt } from '../../ui/components';
 import { MacShell } from '../../data/macShell';
 import { highlightIcon, highlightTint } from '../../ui/meaning';
@@ -14,6 +14,7 @@ import { concentric, elevation, moduleTint, Radius, Space, useTheme, withAlpha }
 import { DayEvents } from './WeekModel';
 import { usePagerDrag } from './Pager';
 import { EditKind } from './editing';
+import { choiceKeys } from '../../ui/accessibility';
 import { useTutorialTarget } from '../tutorial/Tutorial';
 
 /** An hour on the week grid: room for a short title and its room in a fifth of a phone. */
@@ -84,7 +85,7 @@ export function WeekGridView({
       now={now}
       empty={isLoaded && all.length === 0 ? {
         title: 'No classes this week',
-        message: editing ? 'Your course has nothing on this week.' : weekFirst ? 'Use the arrows for other weeks.' : 'Swipe left or right for other weeks.',
+        message: editing ? 'Your course has nothing on this week.' : 'Use Previous week or Next week to see other weeks.',
       } : null}
       renderColumn={(day, width) =>
         Placement.place(shownDays.filter((d) => isSameDay(d.day, day)).flatMap((d) => d.events)).map((item) => {
@@ -140,6 +141,7 @@ export function TimeGrid({
   headRef?: Ref<View>;
 }) {
   const theme = useTheme();
+  const headerID = React.useId();
   const clearance = useTabBarClearance();
   const [onMac] = React.useState(() => MacShell.isPresent());
   const [width, setWidth] = React.useState(0);
@@ -152,16 +154,16 @@ export function TimeGrid({
     <View style={[styles.fill, { backgroundColor: theme.canvas }, styles.cardSides, onMac && styles.macSides]}>
       <View ref={cardRef} collapsable={false} style={[styles.card, { backgroundColor: theme.surface }, elevation(theme)]}>
         <View style={styles.fill} onLayout={(e) => setWidth(e.nativeEvent.layout.width)}>
-          <View ref={headRef} collapsable={false} style={styles.header}>
+          <View ref={headRef} collapsable={false} style={styles.header} accessibilityRole={onPick ? "tablist" : undefined} accessibilityLabel={onPick ? "Days of the week" : undefined}>
             <View style={{ width: GUTTER }} />
             {heads.map((day) => (
-              <DayHead key={day.getTime()} day={day} width={headWidth} now={now} selected={selected} onPick={onPick} />
+              <DayHead key={day.getTime()} id={`${headerID}-${day.getTime()}`} panelID={`${headerID}-panel`} day={day} width={headWidth} now={now} selected={selected} onPick={onPick} />
             ))}
           </View>
           {/* Runs from the first hour to the last and no further; pulled past either, it rubber-bands back. */}
           <ScrollView contentContainerStyle={[styles.gridScroll, { paddingBottom: clearance }]} showsVerticalScrollIndicator={false}>
             <View style={styles.gridRow}>
-              <View style={{ width: GUTTER, height: gridHeight }} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+              <View style={{ width: GUTTER, height: gridHeight }} aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
                 {hours.map((hour) => (
                   <Txt key={hour} type="caption2" color={theme.inkTertiary} style={[styles.hourLabel, { top: (hour - hours[0]) * hourHeight - 7 }]}>
                     {hourLabel(hour)}
@@ -170,7 +172,12 @@ export function TimeGrid({
               </View>
               {width > 0
                 ? columns.map((day) => (
-                    <View key={day.getTime()} style={{ width: columnWidth, height: gridHeight }}>
+                    <View key={day.getTime()} style={{ width: columnWidth, height: gridHeight }}
+                      {...(onPick
+                        ? { role: 'tabpanel' as const, nativeID: `${headerID}-panel` }
+                        : { role: 'group' as const })}
+                      aria-labelledby={`${headerID}-${day.getTime()}`}
+                    >
                       {hours.map((hour) => (
                         <View key={hour} pointerEvents="none" style={[styles.hourLine, { top: (hour - hours[0]) * hourHeight, backgroundColor: theme.gridLine }]} />
                       ))}
@@ -199,7 +206,9 @@ export function TimeGrid({
  * A weekday over its column: the short name, and the date on a disc. Today's disc is filled
  * violet on the week. On the day, the day shown is the filled one and today is ringed.
  */
-function DayHead({ day, width, now, selected, onPick }: {
+function DayHead({ day, id, panelID, width, now, selected, onPick }: {
+  id: string;
+  panelID: string;
   day: Date;
   width: number;
   now: Date;
@@ -222,16 +231,20 @@ function DayHead({ day, width, now, selected, onPick }: {
   );
   if (!onPick) {
     return (
-      <View style={[styles.dayHead, { width }]} accessible accessibilityRole="header"
-        accessibilityLabel={formatWeekdayDayMonth(day)} accessibilityState={{ selected: today }}>
+      <View nativeID={id} style={[styles.dayHead, { width }]} accessible accessibilityRole="header"
+        accessibilityLabel={`${formatWeekdayDayMonth(day)}${today ? ", today" : ""}`}>
         {content}
       </View>
     );
   }
   return (
     <Pressable
+      nativeID={id}
       onPress={() => onPick(day)}
       accessibilityRole="tab"
+      {...choiceKeys(filled)}
+      aria-selected={filled}
+      aria-controls={panelID}
       accessibilityLabel={`${formatWeekdayDayMonth(day)}${today ? ', today' : ''}`}
       accessibilityState={{ selected: filled }}
       style={({ pressed }) => [styles.dayHead, { width, opacity: pressed ? 0.6 : 1 }]}
@@ -254,7 +267,7 @@ function NowLine({ days, hours, hourHeight, dayWidth, now }: { days: Date[]; hou
   const top = (minutes / 60) * hourHeight;
   const todayLeft = GUTTER + today * dayWidth;
   return (
-    <View pointerEvents="none" style={[styles.now, { top }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View pointerEvents="none" style={[styles.now, { top }]} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={[styles.nowAcross, { left: GUTTER, width: days.length * dayWidth, backgroundColor: withAlpha(theme.now, 0.35) }]} />
       <View style={[styles.nowToday, { left: todayLeft, width: dayWidth, backgroundColor: theme.now }]} />
       <View style={[styles.nowDot, { left: todayLeft - NOW_DOT / 2, backgroundColor: theme.now }]} />
@@ -315,16 +328,20 @@ export function Block({
   const inkSoft = solid ? 'rgba(255, 255, 255, 0.85)' : theme.inkSecondary;
   const first = parsedLocations(event)[0];
   const room = first ? first.buildingName ?? first.code : null;
+  const roomLabel = locationDisplay(event);
+  const action = edit === "add" ? "Add" : edit === "remove" ? "Remove" : null;
   const spoken = [
+    action ? `${action} ${titleOf(event)}` : titleOf(event),
+    `${formatWeekdayDayMonth(event.start)} ${event.start.getFullYear()}`,
+    `${formatTime(event.start)} to ${formatTime(event.end)}`,
+    activitySummary(event.activity),
+    eventTypeLabel(event.type),
+    roomLabel === "—" ? (isOnline(event) ? null : "Room not listed") : roomLabel,
+    detail ? staffText(event) : null,
     ghost ? 'Not in your timetable' : null,
     highlight ? highlightReason(highlight) : null,
     detail?.chip && !highlight ? detail.chip.text : null,
     ...due.map((d) => `Due at this class, ${deadlineKindLabel(d.kind)}: ${displayTitle(d)}`),
-    titleOf(event),
-    `${formatTime(event.start)} to ${formatTime(event.end)}`,
-    detail ? activitySummary(event.activity) : null,
-    locationDisplay(event),
-    detail ? staffText(event) : null,
     isClashing ? 'Overlaps another class' : null,
     detail?.past ? 'Finished' : null,
   ].filter(Boolean).join(', ');
@@ -335,7 +352,8 @@ export function Block({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={spoken}
-      accessibilityHint={edit === 'add' ? 'Adds it to your timetable' : edit === 'remove' ? 'Removes it from your timetable' : 'Opens the class'}
+      {...(Platform.OS === "web" ? { dataSet: { classId: event.id } } : {})}
+      accessibilityHint={edit ? 'Choose whether this applies once or every week' : 'Opens the class'}
       style={({ pressed }) => [
         styles.block,
         {

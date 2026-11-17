@@ -14,6 +14,7 @@ import { DropdownMenu } from '../../ui/DropdownMenu';
 import { deadlineKindIcon, deadlineTint } from '../../ui/meaning';
 import { useNow } from '../../state/hooks';
 import { elevation, moduleTint, Radius, Space, useTheme, withAlpha } from '../../ui/theme';
+import { choiceKeys, StatusMessage } from '../../ui/accessibility';
 import { DuePicker } from './DuePicker';
 import { canDelete, canEdit, Moderation } from './Moderation';
 
@@ -461,12 +462,16 @@ export function DeadlineForm({
     }
   }
 
-  const chip = (selected: boolean, onPress: () => void, content: ReactNode, key: string) => (
+  const chip = (selected: boolean, onPress: () => void, content: ReactNode, key: string, label: string, radio = true) => (
     <Pressable
       key={key}
       onPress={onPress}
-      accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      accessibilityRole={radio ? 'radio' : 'button'}
+      {...(radio ? choiceKeys(selected) : {})}
+      accessibilityLabel={label}
+      aria-checked={radio ? selected : undefined}
+      aria-pressed={radio ? undefined : selected}
+      accessibilityState={radio ? { checked: selected } : { selected }}
       style={[styles.kind, { backgroundColor: selected ? theme.accent : theme.raised }]}
     >
       {content}
@@ -498,6 +503,9 @@ export function DeadlineForm({
         />
       }
     >
+      <StatusMessage urgent message={triedAdd
+        ? [...Object.values(problems), detailsProblem].filter(Boolean).join('. ')
+        : ''} />
       <ListScroll>
         <Section
           footer={editing
@@ -514,6 +522,7 @@ export function DeadlineForm({
               </View>
               {problems.module ? <Txt type="caption" color={theme.inkSecondary}>{problems.module}</Txt> : null}
               <DropdownMenu
+                label="Choose a module"
                 visible={pickingModule}
                 anchor={moduleButton}
                 onClose={() => setPickingModule(false)}
@@ -545,7 +554,7 @@ export function DeadlineForm({
                 </Pressable>
                 <View style={styles.kinds}>
                   {chip(atGroupKey === null, () => pickClass(null),
-                    <Txt type="footnote" color={atGroupKey === null ? theme.onAccent : theme.ink}>Whole module</Txt>, 'all')}
+                    <Txt type="footnote" color={atGroupKey === null ? theme.onAccent : theme.ink}>Whole module</Txt>, 'all', 'Whole module', false)}
                 </View>
                 {classKinds.map(({ kind: classKind, classes }) => (
                   <View key={classKind} style={styles.classKind}>
@@ -554,7 +563,7 @@ export function DeadlineForm({
                       {classes.map((c) => chip(c.groupKey === atGroupKey, () => pickClass(c.groupKey),
                         <Txt type="footnote" color={c.groupKey === atGroupKey ? theme.onAccent : theme.ink} accessibilityLabel={c.label}>
                           {c.short}
-                        </Txt>, c.groupKey))}
+                        </Txt>, c.groupKey, c.label, false))}
                     </View>
                   </View>
                 ))}
@@ -595,9 +604,9 @@ export function DeadlineForm({
           </Row>
           <Row>
             <Txt type="footnote" color={theme.inkSecondary} style={styles.fieldLabel}>Type</Txt>
-            <View style={styles.kinds}>
+            <View style={styles.kinds} accessibilityRole="radiogroup" accessibilityLabel="Deadline type">
               {DEADLINE_KINDS.map((k) => chip(k === kind, () => setKind(k),
-                <Label icon={deadlineKindIcon(k)} text={deadlineKindLabel(k)} type="footnote" color={k === kind ? theme.onAccent : theme.ink} />, k))}
+                <Label icon={deadlineKindIcon(k)} text={deadlineKindLabel(k)} type="footnote" color={k === kind ? theme.onAccent : theme.ink} />, k, deadlineKindLabel(k)))}
             </View>
           </Row>
           <Row>

@@ -4,7 +4,7 @@ import { errorMessage } from '../../data/rest';
 import { PrefKey } from '../../data/storage';
 import { usePrefBool, useServices } from '../../state/hooks';
 import { useRoot } from '../../state/root';
-import { BottomCard, Icon, PrimaryButton, SecondaryButton, Spinner, Txt } from '../../ui/components';
+import { BottomCard, dialogHeading, Icon, PrimaryButton, SecondaryButton, Spinner, Txt } from '../../ui/components';
 import { Radius, Space, useTheme } from '../../ui/theme';
 
 type Subgroups = { state: 'loading' } | { state: 'ready'; labels: string[] } | { state: 'failed'; message: string };
@@ -73,10 +73,10 @@ export function SubgroupCard({ ready }: { ready: boolean }) {
   const failed = subgroups.state === 'failed';
   const note = message ?? (failed ? subgroups.message : null);
   return (
-    <BottomCard visible={visible} onClose={() => setHidden(true)}>
+    <BottomCard title="Which lab subgroup are you in?" visible={visible} onClose={() => setHidden(true)}>
       <View style={styles.body}>
         <Icon name="presentation" size={30} color={theme.accent} />
-        <Txt type="headline" style={styles.centred}>Which lab subgroup are you in?</Txt>
+        <Txt type="headline" accessibilityRole="header" {...dialogHeading} style={styles.centred}>Which lab subgroup are you in?</Txt>
         <Txt type="subheadline" color={theme.inkSecondary} style={styles.centred}>
           Someone else on your programme&apos;s class list has the same name as you. Pick your subgroup so the
           app shows your labs, not theirs. Until then you see the general timetable.

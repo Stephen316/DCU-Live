@@ -52,8 +52,9 @@ BUTTONS: Next
 Step 3 — Other days
 POINTS AT: the row of weekdays across the top of the day's grid
 --------------------------------------------------------
-TITLE: Swipe left to see tomorrow
-ACTION: Animated swiping feature (Next also works: a swipe isn't a button)
+TITLE: See the next day
+BODY: Choose Next day, select a later date in the weekday strip, or swipe left.
+ACTION: Animated swiping feature (the date controls and Next also work)
 
 
 Step 4 — The week

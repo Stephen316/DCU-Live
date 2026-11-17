@@ -8,6 +8,7 @@ import { PrefKey } from '../../data/storage';
 import { WebPush } from '../../data/webPush';
 import { usePrefJSON, useServices } from '../../state/hooks';
 import { useWeekModel } from '../../state/root';
+import { choiceKeys } from '../../ui/accessibility';
 import { ActionRow, BarButton, ListScroll, Row, Sheet, ToggleRow, Txt } from '../../ui/components';
 import { light, MIN_TARGET, Radius, Space, useTheme } from '../../ui/theme';
 
@@ -148,10 +149,10 @@ function WebPushSettings({ webPush, visible }: { webPush: WebPush; visible: bool
           header="Notify me when"
           footer="Classes are covered for this week and next, the weeks the app has loaded, so open it at least once a week. Deadlines you've ticked off get no reminders."
         >
-          <ToggleRow value={kinds.classAlerts} onChange={(on) => set('classAlerts', on)}><Txt>A class starts in 15 minutes</Txt></ToggleRow>
-          <ToggleRow value={kinds.classStatus} onChange={(on) => set('classStatus', on)}><Txt>A class is cancelled or moved</Txt></ToggleRow>
-          <ToggleRow value={kinds.newDeadlines} onChange={(on) => set('newDeadlines', on)}><Txt>A deadline is added</Txt></ToggleRow>
-          <ToggleRow value={kinds.deadlineReminders} onChange={(on) => set('deadlineReminders', on)}><Txt>A deadline is due tomorrow, and 3 hours before</Txt></ToggleRow>
+          <ToggleRow value={kinds.classAlerts} onChange={(on) => set('classAlerts', on)} label="A class starts in 15 minutes" />
+          <ToggleRow value={kinds.classStatus} onChange={(on) => set('classStatus', on)} label="A class is cancelled or moved" />
+          <ToggleRow value={kinds.newDeadlines} onChange={(on) => set('newDeadlines', on)} label="A deadline is added" />
+          <ToggleRow value={kinds.deadlineReminders} onChange={(on) => set('deadlineReminders', on)} label="A deadline is due tomorrow, and 3 hours before" />
         </Section>
       );
   }
@@ -192,6 +193,7 @@ function OffsetList({ header, selected, onChoose, disabled, footer }: {
                 onPress={() => onChoose(offset)}
                 disabled={disabled}
                 accessibilityRole="radio"
+                {...choiceKeys(isSelected)}
                 aria-checked={isSelected}
                 accessibilityState={{ checked: isSelected, disabled: !!disabled }}
                 accessibilityLabel={label}

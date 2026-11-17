@@ -1,12 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Children, createContext, isValidElement, ReactNode, Ref, useContext, useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, Animated, ColorValue, Easing, Modal, Platform, Pressable, RefreshControl, ScrollView, StyleProp, StyleSheet, Switch,
+  AccessibilityInfo, ActivityIndicator, Animated, ColorValue, Easing, Platform, Pressable, RefreshControl, ScrollView, StyleProp, StyleSheet, Switch,
   Text, TextProps, TextStyle, View, ViewStyle, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CardInset, concentric, Desktop, elevation, MIN_TARGET, Radius, screenCorner, Space, Type, useTheme, withAlpha } from './theme';
 import { withShinyPlus } from './PlusWord';
+import { choiceKeys, spaceKey } from './accessibility';
+import { AccessibleModal } from './AccessibleModal';
 
 // MARK: - Icons
 
@@ -79,7 +81,7 @@ export type IconName = keyof typeof ICONS;
 
 export function Icon({ name, size = 18, color }: { name: IconName; size?: number; color?: ColorValue }) {
   const theme = useTheme();
-  return <Ionicons name={ICONS[name]} size={size} color={color ?? theme.ink} />;
+  return <Ionicons name={ICONS[name]} size={size} color={color ?? theme.ink} aria-hidden accessibilityElementsHidden importantForAccessibility="no" />;
 }
 
 // MARK: - Text
@@ -87,10 +89,10 @@ export function Icon({ name, size = 18, color }: { name: IconName; size?: number
 type TypeStyle = keyof typeof Type;
 
 export function Txt({
-  type = 'body', color, style, ...rest
-}: TextProps & { type?: TypeStyle; color?: string; style?: StyleProp<TextStyle> }) {
+  type = 'body', color, style, ref, ...rest
+}: TextProps & { type?: TypeStyle; color?: string; style?: StyleProp<TextStyle>; ref?: Ref<Text> }) {
   const theme = useTheme();
-  return <Text {...rest} style={[Type[type], { color: color ?? theme.ink }, style]} />;
+  return <Text ref={ref} {...rest} style={[Type[type], { color: color ?? theme.ink }, style]} />;
 }
 
 /** An icon and its words, as one line — SwiftUI's `Label`. */
@@ -335,7 +337,8 @@ export function ScreenHeader({
     <View style={[styles.screenHeader, { paddingTop: insets.top + Space.xs, backgroundColor: theme.canvas }]}>
       <View style={styles.screenHeaderSide}>{left}</View>
       <View style={styles.screenHeaderTitle}>
-        <Txt type="title3" numberOfLines={1} style={styles.bold} accessibilityRole="header">{title}</Txt>
+        <Txt type="title3" numberOfLines={1} style={styles.bold} accessibilityRole="header"
+          {...(Platform.OS === 'web' ? { tabIndex: -1, dataSet: { screenHeading: '' } } : {})}>{title}</Txt>
         {typeof subtitle === 'string' ? (
           <Txt type="footnote" color={theme.inkSecondary} numberOfLines={1}>{subtitle}</Txt>
         ) : subtitle ?? null}
@@ -358,12 +361,12 @@ export function LabeledRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function ToggleRow({ value, onChange, children }: { value: boolean; onChange: (value: boolean) => void; children: ReactNode }) {
+export function ToggleRow({ value, onChange, label }: { value: boolean; onChange: (value: boolean) => void; label: string }) {
   return (
     <Row>
       <View style={styles.rowLine}>
-        <View style={styles.fill}>{children}</View>
-        <AppSwitch value={value} onValueChange={onChange} />
+        <View style={styles.fill} aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Txt>{label}</Txt></View>
+        <AppSwitch value={value} onValueChange={onChange} accessibilityLabel={label} />
       </View>
     </Row>
   );
@@ -403,6 +406,7 @@ export function AppSwitch({
   return (
     <Pressable
       onPress={() => onValueChange(!value)}
+      {...spaceKey(() => onValueChange(!value))}
       accessibilityRole="switch"
       aria-checked={value}
       accessibilityLabel={accessibilityLabel}
@@ -497,14 +501,14 @@ export function SecondaryButton({ title, onPress, disabled }: { title: string; o
  * A small inline action inside a row, such as "This is right" on a deadline. The chip is
  * sized to its words; the hit area is padded out to 44pt so a thumb can find it.
  */
-export function InlineAction({ title, onPress, tint, disabled }: { title: string; onPress: () => void; tint?: string; disabled?: boolean }) {
+export function InlineAction({ title, onPress, tint, disabled, label }: { title: string; onPress: () => void; tint?: string; disabled?: boolean; label?: string }) {
   const theme = useTheme();
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityLabel={title}
+      accessibilityLabel={label ?? title}
       hitSlop={{ top: 8, bottom: 8 }}
       style={({ pressed }) => [styles.inlineTarget, { opacity: pressed ? 0.6 : disabled ? 0.4 : 1 }]}
     >
@@ -528,7 +532,7 @@ export function BarButton({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!(disabled || dimmed) }}
+      accessibilityState={{ disabled: !!disabled }}
       hitSlop={10}
       style={styles.barButton}
     >
@@ -631,7 +635,9 @@ export function Segmented<T extends string>({
             key={option.value}
             onPress={() => onChange(option.value)}
             accessibilityRole="radio"
-            accessibilityState={{ selected }}
+            {...choiceKeys(selected)}
+            aria-checked={selected}
+            accessibilityState={{ checked: selected }}
             style={({ pressed }) => [styles.segment, { opacity: pressed ? 0.6 : 1 }]}
           >
             <Txt type="subheadline" color={selected ? theme.onAccent : theme.inkSecondary} style={selected ? styles.semibold : undefined}>
@@ -739,6 +745,15 @@ export function EmptyState({
 
 // MARK: - Sheets
 
+export const dialogHeading = Platform.OS === 'web' ? { tabIndex: -1 as const, dataSet: { dialogHeading: '' } } : {};
+export const dialogBackdrop = {
+  accessible: false,
+  'aria-hidden': true as const,
+  accessibilityElementsHidden: true,
+  importantForAccessibility: 'no-hide-descendants' as const,
+  tabIndex: -1 as const,
+};
+
 /**
  * A full sheet with its own header bar — "Your groups", "Account". A page sheet on iOS,
  * full screen elsewhere.
@@ -764,7 +779,7 @@ export function Sheet({
     <>
       <View style={[styles.sheetBar, { borderBottomColor: theme.separator }]}>
         <View style={styles.sheetBarSide}>{left}</View>
-        <Txt type="headline" numberOfLines={1} style={styles.sheetTitle} accessibilityRole="header">{title}</Txt>
+        <Txt type="headline" numberOfLines={1} style={styles.sheetTitle} accessibilityRole="header" {...dialogHeading}>{title}</Txt>
         <View style={[styles.sheetBarSide, styles.sheetBarRight]}>{right}</View>
       </View>
       {children}
@@ -773,33 +788,35 @@ export function Sheet({
   // A desktop window: a panel over the dimmed app, as a Mac app's sheet sits over its window.
   if (wide && Platform.OS === 'web') {
     return (
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => dismissable && onClose()} onDismiss={onDismissed}>
+      <AccessibleModal label={title} visible={visible} transparent animationType="fade" onRequestClose={() => dismissable && onClose()} onDismiss={onDismissed}>
         <View style={[styles.scrim, styles.centred]}>
-          <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissable && onClose()} accessibilityLabel="Close" />
-          <View style={[styles.panel, { backgroundColor: theme.canvas, borderColor: theme.separator }]}>{content}</View>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissable && onClose()} {...dialogBackdrop} />
+          <View accessibilityViewIsModal style={[styles.panel, { backgroundColor: theme.canvas, borderColor: theme.separator }]}>{content}</View>
         </View>
-      </Modal>
+      </AccessibleModal>
     );
   }
   return (
-    <Modal
+    <AccessibleModal
+      label={title}
       visible={visible}
       animationType="slide"
       presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
       onRequestClose={() => dismissable && onClose()}
       onDismiss={onDismissed}
     >
-      <View style={[styles.fill, { backgroundColor: theme.canvas, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
+      <View accessibilityViewIsModal style={[styles.fill, { backgroundColor: theme.canvas, paddingTop: Platform.OS === 'ios' ? 0 : insets.top }]}>
         {content}
       </View>
-    </Modal>
+    </AccessibleModal>
   );
 }
 
 /** A card that rises from the bottom over a dimmed screen: questions and short choices. */
 export function BottomCard({
-  visible, onClose, children, dismissable = true, onDismissed,
+  title, visible, onClose, children, dismissable = true, onDismissed,
 }: {
+  title: string;
   visible: boolean;
   onClose: () => void;
   children: ReactNode;
@@ -812,10 +829,11 @@ export function BottomCard({
   // In a desktop window the card is a dialog in the middle, not a tray at the far bottom.
   const wide = useWide();
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => dismissable && onClose()} onDismiss={onDismissed}>
+    <AccessibleModal label={title} visible={visible} transparent animationType="fade" onRequestClose={() => dismissable && onClose()} onDismiss={onDismissed}>
       <View style={[styles.scrim, wide && styles.centred]}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissable && onClose()} accessibilityLabel="Close" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => dismissable && onClose()} {...dialogBackdrop} />
         <View
+          accessibilityViewIsModal
           style={[
             styles.bottomCard,
             {
@@ -832,7 +850,7 @@ export function BottomCard({
           </ButtonCorner.Provider>
         </View>
       </View>
-    </Modal>
+    </AccessibleModal>
   );
 }
 
@@ -856,10 +874,10 @@ export function ConfirmSheet({
 }) {
   const theme = useTheme();
   return (
-    <BottomCard visible={visible} onClose={onClose}>
+    <BottomCard title={title} visible={visible} onClose={onClose}>
       <View style={styles.confirmBody}>
         <Icon name={icon} size={30} color={tint} />
-        <Txt type="headline" style={styles.centerText}>{title}</Txt>
+        <Txt type="headline" style={styles.centerText} accessibilityRole="header" {...dialogHeading}>{title}</Txt>
         <Txt type="subheadline" color={theme.inkSecondary} style={styles.centerText}>{message}</Txt>
       </View>
       <View style={styles.buttonStack}>
@@ -908,10 +926,10 @@ export function ActionSheet({
     }
   };
   return (
-    <BottomCard visible={visible} onClose={onClose} onDismissed={runPending}>
+    <BottomCard title={title ?? "Choose an action"} visible={visible} onClose={onClose} onDismissed={runPending}>
       {title || message ? (
         <View style={styles.actionHeader}>
-          {title ? <Txt type="headline" style={styles.centerText}>{title}</Txt> : null}
+          {title ? <Txt type="headline" style={styles.centerText} accessibilityRole="header" {...dialogHeading}>{title}</Txt> : null}
           {message ? <Txt type="footnote" color={theme.inkSecondary} style={styles.centerText}>{message}</Txt> : null}
         </View>
       ) : null}

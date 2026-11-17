@@ -1,8 +1,8 @@
 import { router } from 'expo-router';
 import {
-  createContext, ReactNode, RefObject, useCallback, useContext, useEffect, useMemo, useRef, useState,
+  createContext, KeyboardEvent, ReactNode, RefObject, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 } from 'react';
-import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Tutorial, TutorialSignal, TutorialStep, TutorialTarget, TutorialText } from '../../core/tutorial';
 import { useWeekFirst } from '../../ui/floatingBar';
 import { Safari } from '../../data/safari';
@@ -91,6 +91,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const [run, setRun] = useState<{ steps: TutorialStep[]; index: number } | null>(null);
   const targets = useRef(new Map<TutorialTarget, Set<RefObject<View | null>>>());
   const [dragging, setDragging] = useState(false);
+  const app = useRef<View>(null);
   // No Today tab on the Mac or a desktop-wide window, so their tour starts on the week.
   const weekFirst = useWeekFirst();
 
@@ -121,6 +122,7 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
   const step = run ? run.steps[run.index] : null;
   const isLast = run ? run.index === run.steps.length - 1 : false;
+  const blockApp = !!step && !step.hidden && !step.action;
 
   // A step on the timetable reached from somewhere else — More, after Deadlines — takes the
   // student there, rather than asking them to find their way back.
@@ -137,6 +139,11 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     setRun(null);
     if (router.canDismiss()) router.dismissAll();
     router.navigate('/');
+    if (Platform.OS === 'web') requestAnimationFrame(() => {
+      const root = app.current as unknown as HTMLElement | null;
+      const headings = root?.querySelectorAll<HTMLElement>('[data-screen-heading]');
+      Array.from(headings ?? []).find((element) => !element.closest('[aria-hidden="true"], [inert]'))?.focus();
+    });
   }, [setDue]);
 
   /** Next, or a step whose control never appeared. */
@@ -176,7 +183,14 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
   return (
     <TutorialContext.Provider value={state}>
-      {children}
+      <View
+        ref={app}
+        collapsable={false}
+        style={styles.app}
+        {...(Platform.OS === 'web' ? { inert: blockApp, 'aria-hidden': blockApp || undefined } : {})}
+        accessibilityElementsHidden={blockApp}
+        importantForAccessibility={blockApp ? 'no-hide-descendants' : 'auto'}
+      >{children}</View>
       {run && step && !step.hidden ? (
         <Overlay
           key={step.id}
@@ -209,6 +223,10 @@ function Overlay({ step, position, targets, onPrimary, onSkip, onMissing, draggi
   const [rect, setRect] = useState<Rect | null>(null);
   const [cardHeight, setCardHeight] = useState(180);
   const [fade] = useState(() => new Animated.Value(0));
+  const heading = useRef<Text>(null);
+  const titleID = useId();
+  const bodyID = useId();
+  const focused = useRef(false);
   /** The control has stopped moving: the page under the tour has finished loading or sliding. */
   const [settled, setSettled] = useState(false);
   const reduceMotion = useReduceMotion();
@@ -225,7 +243,7 @@ function Overlay({ step, position, targets, onPrimary, onSkip, onMissing, draggi
 
 
   useEffect(() => {
-    AccessibilityInfo.announceForAccessibility([step.title, step.body].filter(Boolean).join('. '));
+    if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility([step.title, step.body].filter(Boolean).join('. '));
   }, [step]);
 
   // Follows the control every frame — a scroll, a page turn, the keyboard — so the cut-out
@@ -311,9 +329,9 @@ function Overlay({ step, position, targets, onPrimary, onSkip, onMissing, draggi
         height: isArea ? Math.min(rect.height + PAD * 2, window.height * 0.42) : rect.height + PAD * 2,
       }, window)
     : null;
-  // The page stays usable — lightly dimmed, nothing blocked — while a scroll step waits for its
-  // control to come into view, and while the student finds Back.
-  const free = step.action === 'scrollDown' && !hole;
+  // Leave the date controls and swipe area available during day navigation practice.
+  // Also leave the page usable while the student scrolls to a target.
+  const free = step.action === 'swipeLeft' || (step.action === 'scrollDown' && !hole);
   const scrolling = step.action === 'scrollDown' && !hole;
   // Touches reach the control under the cut-out whenever the step is for pressing it.
   const passThrough = step.action === 'swipeLeft' || step.action === 'tap' || step.action === 'scrollDown';
@@ -357,6 +375,33 @@ function Overlay({ step, position, targets, onPrimary, onSkip, onMissing, draggi
   useEffect(() => {
     Animated.timing(fade, { toValue: shown ? 1 : 0, duration: reduceMotion ? 0 : FADE_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
   }, [fade, shown, reduceMotion]);
+
+  useLayoutEffect(() => {
+    if (Platform.OS !== 'web' || !shown || focused.current) return;
+    heading.current?.focus();
+    focused.current = true;
+  }, [shown]);
+
+  const modal = !passThrough;
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      onSkip();
+      return;
+    }
+    if (!modal || event.key !== 'Tab') return;
+    const stops = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button, video[controls]'))
+      .filter((element) => element.tabIndex >= 0);
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    if (event.shiftKey && (event.target === first || event.target === (heading.current as unknown as HTMLElement | null)) && last) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && event.target === last && first) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   const dim = 'rgba(0, 0, 0, 0.6)';
   return (
@@ -409,13 +454,26 @@ function Overlay({ step, position, targets, onPrimary, onSkip, onMissing, draggi
 
       <View
         // Only when there's nothing else to press: VoiceOver must still reach a control the step is for.
-        accessibilityViewIsModal={!passThrough && !free}
+        accessibilityViewIsModal={modal}
+        {...(Platform.OS === 'web' ? {
+          role: modal ? 'dialog' as const : 'region' as const,
+          'aria-modal': modal ? true : undefined,
+          'aria-labelledby': titleID,
+          'aria-describedby': body ? bodyID : undefined,
+          onKeyDown,
+        } : {})}
         onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
         style={[styles.card, { top: cardTop, left: cardLeft, width: cardWidth, backgroundColor: theme.surface, borderColor: theme.separator }, elevation(theme, 'float')]}
       >
         <Txt type="caption" color={theme.inkTertiary}>{TutorialText.count(position.n, position.total)}</Txt>
-        <Txt type="headline" accessibilityRole="header">{title}</Txt>
-        {body ? <Txt type="subheadline" color={theme.inkSecondary}>{body}</Txt> : null}
+        <Txt
+          ref={heading}
+          nativeID={titleID}
+          type="headline"
+          accessibilityRole="header"
+          {...(Platform.OS === 'web' ? { tabIndex: -1, 'aria-describedby': body ? bodyID : undefined } : {})}
+        >{title}</Txt>
+        {body ? <Txt nativeID={bodyID} type="subheadline" color={theme.inkSecondary}>{body}</Txt> : null}
         {/* As large as the card and the screen allow once the words and buttons have their room. */}
         {step.media ? (
           <TutorialVideo media={step.media} maxWidth={cardWidth - Space.l * 2} maxHeight={Math.max(200, window.height - 320)} />
@@ -426,13 +484,13 @@ function Overlay({ step, position, targets, onPrimary, onSkip, onMissing, draggi
               <Txt type="subheadline" color={theme.inkSecondary}>{step.skip}</Txt>
             </Pressable>
           ) : <View />}
-          {step.primary ? (
+          {step.primary || Platform.OS === 'web' ? (
             <Pressable
               onPress={onPrimary}
               accessibilityRole="button"
               style={({ pressed }) => [styles.primary, { backgroundColor: theme.accent }, pressed && styles.pressed]}
             >
-              <Txt type="subheadline" color={theme.canvas} style={styles.semibold}>{step.primary}</Txt>
+              <Txt type="subheadline" color={theme.canvas} style={styles.semibold}>{step.primary ?? TutorialText.next}</Txt>
             </Pressable>
           ) : null}
         </View>
@@ -572,6 +630,7 @@ function same(a: Rect | null, b: Rect | null): boolean {
 }
 
 const styles = StyleSheet.create({
+  app: { flex: 1 },
   card: {
     // A card's radius: its button and recording, `Space.l` in, curve round its corner centres.
     position: 'absolute', padding: Space.l, gap: Space.xs, borderRadius: Radius.card, borderWidth: StyleSheet.hairlineWidth,

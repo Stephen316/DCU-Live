@@ -167,7 +167,7 @@ export function ExportCalendarCard({ visible, onClose, inline = false }: { visib
       </SettingsSection>
     </>
   );
-  return inline ? <ListScroll contentStyle={{ paddingBottom: clearance }}>{content}</ListScroll> : <BottomCard visible={visible} onClose={close}>{content}</BottomCard>;
+  return inline ? <ListScroll contentStyle={{ paddingBottom: clearance }}>{content}</ListScroll> : <BottomCard title="Export calendar" visible={visible} onClose={close}>{content}</BottomCard>;
 }
 
 /**

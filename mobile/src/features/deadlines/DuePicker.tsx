@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { DatePicking } from '../../core/datePicking';
 import { formatTime, formatWeekdayDayMonth, isSameDay, monthName, startOfDay, weekdayName } from '../../core/time';
-import { BottomCard, Icon, InlineAction, PrimaryButton, Txt } from '../../ui/components';
+import { BottomCard, dialogHeading, Icon, InlineAction, PrimaryButton, SecondaryButton, Txt } from '../../ui/components';
 import { TimeWheel } from '../../ui/TimeWheel';
 import { Space, useTheme } from '../../ui/theme';
 
@@ -14,10 +14,12 @@ import { Space, useTheme } from '../../ui/theme';
  */
 export function DuePicker({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
   const [open, setOpen] = useState<'date' | 'time' | null>(null);
+  const date = formatWeekdayDayMonth(value);
+  const time = formatTime(value);
   return (
     <View style={styles.chips}>
-      <InlineAction title={formatWeekdayDayMonth(value)} onPress={() => setOpen('date')} />
-      <InlineAction title={formatTime(value)} onPress={() => setOpen('time')} />
+      <InlineAction title={date} label={`Due date, ${date}`} onPress={() => setOpen('date')} />
+      <InlineAction title={time} label={`Due time, ${time}`} onPress={() => setOpen('time')} />
       <CalendarCard
         visible={open === 'date'}
         value={value}
@@ -56,13 +58,13 @@ function CalendarCard({ visible, value, onPick, onClose }: {
   const step = (by: number) => setShown(DatePicking.stepMonth(shown.year, shown.month, by));
 
   return (
-    <BottomCard visible={visible} onClose={onClose}>
+    <BottomCard title="Choose a due date" visible={visible} onClose={onClose}>
       <View style={styles.monthBar}>
         <MonthStep icon="back" label="Previous month" disabled={atFirst} onPress={() => step(-1)} />
-        <Txt type="headline" accessibilityRole="header">{title}</Txt>
+        <Txt type="headline" accessibilityRole="header" aria-live="polite" {...dialogHeading}>{title}</Txt>
         <MonthStep icon="forward" label="Next month" onPress={() => step(1)} />
       </View>
-      <View style={styles.week} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+      <View style={styles.week} aria-hidden importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
         {WEEKDAYS.map((d, i) => (
           <Txt key={i} type="caption" color={theme.inkSecondary} style={styles.weekday}>{d}</Txt>
         ))}
@@ -80,7 +82,8 @@ function CalendarCard({ visible, value, onPick, onClose }: {
                 disabled={past}
                 onPress={() => onPick(day)}
                 accessibilityRole="button"
-                accessibilityLabel={`${weekdayName(day)} ${day.getDate()} ${monthName(day)}`}
+                accessibilityLabel={`${weekdayName(day)} ${day.getDate()} ${monthName(day)} ${day.getFullYear()}${isToday ? ", today" : ""}`}
+                aria-pressed={chosen}
                 accessibilityState={{ selected: chosen, disabled: past }}
                 style={({ pressed }) => [
                   styles.cell,
@@ -102,6 +105,7 @@ function CalendarCard({ visible, value, onPick, onClose }: {
           })}
         </View>
       ))}
+      <View style={styles.done}><SecondaryButton title="Cancel" onPress={onClose} /></View>
     </BottomCard>
   );
 }
@@ -133,8 +137,8 @@ function TimeCard({ visible, value, onChange, onClose }: {
   onClose: () => void;
 }) {
   return (
-    <BottomCard visible={visible} onClose={onClose}>
-      <Txt type="headline" accessibilityRole="header" style={styles.timeTitle}>{formatWeekdayDayMonth(value)}</Txt>
+    <BottomCard title="Choose a due time" visible={visible} onClose={onClose}>
+      <Txt type="headline" accessibilityRole="header" {...dialogHeading} style={styles.timeTitle}>{formatWeekdayDayMonth(value)}</Txt>
       <TimeWheel
         hours={value.getHours()}
         minutes={value.getMinutes()}

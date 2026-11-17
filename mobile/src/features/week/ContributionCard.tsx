@@ -4,7 +4,7 @@ import { Contribution, Contributions } from '../../core/contributions';
 import { PrefKey } from '../../data/storage';
 import { usePrefBool, usePrefJSON, useServices } from '../../state/hooks';
 import { useWeekModel } from '../../state/root';
-import { BottomCard, Icon, PrimaryButton, Txt } from '../../ui/components';
+import { BottomCard, dialogHeading, Icon, PrimaryButton, Txt } from '../../ui/components';
 import { Space, useTheme } from '../../ui/theme';
 
 /**
@@ -42,10 +42,10 @@ export function ContributionCard({ ready }: { ready: boolean }) {
 
   const message = shown ? Contributions.message(shown, (key) => week.moduleName(key)) : null;
   return (
-    <BottomCard visible={shown !== null && ready} onClose={close}>
+    <BottomCard title={message?.title ?? "Your contribution"} visible={shown !== null && ready} onClose={close}>
       <View style={styles.body}>
         <Icon name={shown?.[0].kind === 'deadline' ? 'confirmed' : 'report'} size={30} color={theme.accent} />
-        <Txt type="headline" style={styles.centred}>{message?.title ?? ''}</Txt>
+        <Txt type="headline" accessibilityRole="header" {...dialogHeading} style={styles.centred}>{message?.title ?? ''}</Txt>
         <Txt type="subheadline" color={theme.inkSecondary} style={styles.centred}>{message?.body ?? ''}</Txt>
       </View>
       <View style={styles.buttons}>

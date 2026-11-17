@@ -1,11 +1,12 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Pressable, StyleSheet, View } from 'react-native';
-import { deadlineSectionTitle, DeadlineRules, PAST_DEADLINE_DAYS } from '../../core/deadline';
+import { useCallback, useMemo, useRef, useState } from 'react';
+import { Pressable, StyleSheet, View } from 'react-native';
+import { Deadline, deadlineSectionTitle, DeadlineRules, displayTitle, PAST_DEADLINE_DAYS } from '../../core/deadline';
 import { startOfWeek } from '../../core/time';
 import { useModel, useNow, useServices } from '../../state/hooks';
 import { useWeekModel } from '../../state/root';
 import { EmptyState, Icon, InlineAction, Label, ListScroll, PillButton, Row, ScreenHeader, Section, Txt } from '../../ui/components';
+import { choiceKeys, StatusMessage } from '../../ui/accessibility';
 import { LoadingScreen } from '../../ui/LoadingScreen';
 import { DropdownMenu } from '../../ui/DropdownMenu';
 import { useTabBarClearance } from '../../ui/floatingBar';
@@ -58,19 +59,21 @@ export function DeadlinesScreen() {
   const now = useNow();
   const showsThisWeek = !!week.weekLabel && week.weekStart?.getTime() === startOfWeek(now).getTime();
 
-  // A new deadline is announced to a screen reader; it lands in Pending, at the top of its day.
-  useEffect(() => {
-    const id = model.justAdded;
-    if (!id) return;
-    const added = model.sections.flatMap((g) => g.deadlines).find((d) => d.id === id);
-    if (added) AccessibilityInfo.announceForAccessibility(`Added ${added.title}`);
-    // Only a new id is a new arrival; the sections it reads are as they were when it was added.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model.justAdded]);
-
   // Pending and Completed are one list split by this student's own ticks. Completed also ends
   // with Past: everything whose day is over, ticked or not, for the fortnight the server keeps it.
   const [tab, setTab] = useState<'pending' | 'completed'>('pending');
+  const activeTab = useRef<View>(null);
+  const [completionMessage, setCompletionMessage] = useState('');
+  const added = model.justAdded
+    ? model.sections.flatMap((group) => group.deadlines).find((deadline) => deadline.id === model.justAdded)
+    : undefined;
+
+  const toggleCompleted = (deadline: Deadline, restoreFocus?: boolean) => {
+    if (restoreFocus) activeTab.current?.focus();
+    const completed = !model.isCompleted(deadline);
+    model.toggleCompleted(deadline);
+    setCompletionMessage(`${displayTitle(deadline)} marked ${completed ? "done" : "not done"}`);
+  };
   const [openId, setOpenId] = useState<string | null>(null);
   const all = model.sections.flatMap((g) => g.deadlines);
   const ticked = all.filter((d) => model.isCompleted(d)).length;
@@ -85,6 +88,8 @@ export function DeadlinesScreen() {
 
   const header = (
     <>
+      <StatusMessage message={added ? `Added ${displayTitle(added)}` : ''} />
+      <StatusMessage message={completionMessage} />
       <ScreenHeader
         title="Deadlines"
         subtitle={model.isEmpty ? undefined : (
@@ -92,7 +97,8 @@ export function DeadlinesScreen() {
             <Pressable
               onPress={() => setFilterOpen(true)}
               accessibilityRole="button"
-              accessibilityLabel={`Showing ${filterTitle}`}
+              accessibilityLabel={`Filter deadlines by module, showing ${filterTitle}`}
+              aria-expanded={filterOpen}
               accessibilityHint="Choose a module"
               hitSlop={10}
               style={({ pressed }) => [styles.filterLabel, { opacity: pressed ? 0.6 : 1 }]}
@@ -118,6 +124,7 @@ export function DeadlinesScreen() {
         }}
       />
       <DropdownMenu
+        label="Filter deadlines by module"
         visible={filterOpen}
         anchor={filterButton}
         align="center"
@@ -177,15 +184,20 @@ export function DeadlinesScreen() {
   return (
     <View style={[styles.fill, { backgroundColor: theme.canvas }]}>
       {header}
-      <View style={styles.tabs} accessibilityRole="tablist">
+      <View style={styles.tabs} accessibilityRole="tablist" accessibilityLabel="Deadline status">
         {(['pending', 'completed'] as const).map((key) => {
           const on = tab === key;
           const count = key === 'pending' ? pendingCount : completedCount;
           return (
             <Pressable
               key={key}
+              ref={on ? activeTab : undefined}
+              nativeID={`deadlines-${key}`}
               onPress={() => setTab(key)}
               accessibilityRole="tab"
+              {...choiceKeys(on)}
+              aria-selected={on}
+              aria-controls="deadline-list"
               accessibilityState={{ selected: on }}
               accessibilityLabel={`${key === 'pending' ? 'Pending' : 'Completed'}, ${count}`}
               style={[
@@ -214,7 +226,7 @@ export function DeadlinesScreen() {
           </Section>
         ) : null}
         <CardSwap swapKey={`${model.moduleFilter ?? 'all'}-${tab}`}>
-          <View style={styles.list}>
+          <View style={styles.list} role="tabpanel" nativeID="deadline-list" aria-labelledby={`deadlines-${tab}`}>
             {groups.length === 0 && past.length === 0 ? (
               <View style={styles.none}>
                 <Txt type="title3">{tab === 'pending' ? 'All caught up' : 'Nothing completed yet'}</Txt>
@@ -238,7 +250,7 @@ export function DeadlinesScreen() {
                     moduleName={week.moduleName(d.moduleKey)}
                     completed={model.isCompleted(d)}
                     disputed={model.standing(d).disputeCount > 0}
-                    onToggle={() => model.toggleCompleted(d)}
+                    onToggle={(restoreFocus) => toggleCompleted(d, restoreFocus)}
                     onOpen={() => setOpenId(d.id)}
                   />
                 ))}
@@ -259,7 +271,7 @@ export function DeadlinesScreen() {
                     moduleName={week.moduleName(d.moduleKey)}
                     completed={model.isCompleted(d)}
                     disputed={model.standing(d).disputeCount > 0}
-                    onToggle={() => model.toggleCompleted(d)}
+                    onToggle={() => toggleCompleted(d)}
                     onOpen={() => setOpenId(d.id)}
                     leaves={false}
                   />

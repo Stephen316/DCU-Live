@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { TabBar } from '../../features/week/TabBar';
 import { Icon } from '../../ui/components';
 import { DesktopRail, useDesktopRail, useRailBalance, useWeekFirst } from '../../ui/floatingBar';
@@ -25,6 +25,16 @@ export default function TabsLayout() {
       backBehavior={Platform.OS === 'web' ? 'none' : 'firstRoute'}
       // Every screen keeps clear of the rail; the week also gives up as much on its left, so the
       // grid is centred in the window rather than in what the rail leaves of it.
+      screenLayout={Platform.OS === 'web' ? ({ children, route }) => (
+        <View role="main" style={{ flex: 1 }}>
+          <View
+            role="tabpanel"
+            nativeID={`app-panel-${route.name}`}
+            aria-labelledby={`app-tab-${weekFirst && route.name === 'week' ? 'index' : route.name}`}
+            style={{ flex: 1 }}
+          >{children}</View>
+        </View>
+      ) : undefined}
       screenOptions={({ route }) => ({
         headerShown: false,
         sceneStyle: rail ? { marginRight: DesktopRail.width, marginLeft: WEEK_ROUTES.has(route.name) ? balance : 0 } : undefined,

@@ -155,9 +155,9 @@ export function Pager({
           <Animated.View
             style={[styles.strip, { width: width * 3, transform: [{ translateX: Animated.add(drag, -width) }] }]}
           >
-            <View style={{ width }} key={`p${index - 1}`} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>{page(index - 1)}</View>
+            <View style={{ width }} key={`p${index - 1}`} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden {...(Platform.OS === "web" ? { inert: true, 'aria-hidden': true } : {})}>{page(index - 1)}</View>
             <View style={{ width }} key={`p${index}`}>{page(index)}</View>
-            <View style={{ width }} key={`p${index + 1}`} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>{page(index + 1)}</View>
+            <View style={{ width }} key={`p${index + 1}`} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden {...(Platform.OS === "web" ? { inert: true, 'aria-hidden': true } : {})}>{page(index + 1)}</View>
           </Animated.View>
         </PagerDragContext.Provider>
       ) : null}
@@ -197,7 +197,7 @@ function useDesktopTurns(clip: RefObject<View | null>, turn: PagerControl['turn'
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey || e.defaultPrevented) return;
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (!target || !element.contains(target) || target.closest('input, textarea, select, [contenteditable], [role=tablist], [role=radiogroup]')) return;
       if (!onTop()) return;
       e.preventDefault();
       turn(e.key === 'ArrowRight' ? 1 : -1);

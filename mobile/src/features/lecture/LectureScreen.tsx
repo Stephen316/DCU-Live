@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Image, Platform, StyleSheet, Text, View } from 'react-native';
 import { CANCELLATION_NET_THRESHOLD, CANCELLATION_THRESHOLD, ReportStance, VERDICT_STATES, VerdictState } from '../../core/cancellation';
 import {
   CONFIRM_THRESHOLD, Deadline, deadlineKindLabel, DeadlineRules, displayTitle, gradeWeightLabel, isSatInClass,
@@ -38,6 +39,13 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
   /** Non-null while the "are you sure?" card is up, holding the side being reported. */
   const [pendingReport, setPendingReport] = useState<ReportStance | null>(null);
   const status = model.status;
+  const heading = useRef<Text>(null);
+
+  useFocusEffect(useCallback(() => {
+    if (Platform.OS !== 'web') return;
+    const frame = requestAnimationFrame(() => heading.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, []));
 
   useEffect(() => {
     void model.load();
@@ -87,8 +95,8 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
         ) : null}
 
         {/* The class as the timetable draws it: a solid block of its module's colour. */}
-        <View style={[styles.hero, { backgroundColor: tint }, elevation(theme)]} accessible accessibilityRole="header">
-          <Txt type="pageTitle" color="#FFFFFF" style={styles.heroTitle}>{titleOf(event)}</Txt>
+        <View style={[styles.hero, { backgroundColor: tint }, elevation(theme)]}>
+          <Txt ref={heading} {...(Platform.OS === "web" ? { tabIndex: -1 } : {})} accessibilityRole="header" type="pageTitle" color="#FFFFFF" style={styles.heroTitle}>{titleOf(event)}</Txt>
           <Txt type="subheadline" color="rgba(255, 255, 255, 0.85)">{groupLabelOf(event)}</Txt>
           <View style={styles.heroLine}>
             <Icon name="calendar" size={15} color="#FFFFFF" />

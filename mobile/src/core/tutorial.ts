@@ -154,7 +154,7 @@ const PHONE: TutorialStep[] = [
     id: 'day', target: 'dayList', title: 'Your day',
     body: "View each day's modules here. See locations, class type and lecturers.",
   }),
-  step({ id: 'swipe', target: 'dayHeading', title: 'Swipe left to see tomorrow', action: 'swipeLeft', advancesOn: 'daySwiped' }),
+  step({ id: 'swipe', target: 'dayHeading', title: 'See the next day', body: 'Choose Next day, select a later date in the weekday strip, or swipe left.', action: 'swipeLeft', advancesOn: 'daySwiped' }),
   press({ id: 'week', target: 'weekTab', advancesOn: 'weekShown', title: 'See the whole week', body: 'Tap the calendar to see the whole week.' }),
   ...classSteps('Tap a class'),
   ...deadlines,

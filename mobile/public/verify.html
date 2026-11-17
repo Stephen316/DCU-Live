@@ -14,31 +14,36 @@
       p { margin: 0 0 20px; color: var(--muted); }
       button { font: inherit; font-weight: 600; color: #fff; background: var(--accent); border: 0; border-radius: 10px; padding: 14px 22px; width: 100%; cursor: pointer; }
       button:disabled { opacity: 0.6; cursor: default; }
+      .status { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
       [hidden] { display: none; }
     </style>
   </head>
   <body>
     <main>
+      <p class="status" id="progress" role="status"></p>
       <!-- Mail scanners GET this page. Only the button below does anything, and they don't press buttons. -->
       <section id="ready" hidden>
-        <h1>Confirm your account</h1>
-        <p>Press the button to finish creating your DCU Live account.</p>
+        <h1 tabindex="-1" aria-describedby="readyText">Confirm your account</h1>
+        <p id="readyText">Press the button to finish creating your DCU Live account.</p>
         <button id="go" type="button">Confirm my account</button>
       </section>
       <section id="done" hidden>
-        <h1>You're in</h1>
-        <p>Your account is ready. Go back to DCU Live and press Continue — or sign in with your email and password.</p>
+        <h1 tabindex="-1" aria-describedby="doneText">You're in</h1>
+        <p id="doneText">Your account is ready. Go back to DCU Live and press Continue — or sign in with your email and password.</p>
       </section>
       <section id="failed" hidden>
-        <h1 id="failedTitle">That didn't work</h1>
+        <h1 id="failedTitle" tabindex="-1" aria-describedby="failedText">That didn't work</h1>
         <p id="failedText"></p>
       </section>
     </main>
     <script>
       var ENDPOINT = 'https://pkytnujhwjxudtrudihu.supabase.co/functions/v1/signup';
       var token = (/[#&]t=([0-9a-f]{64})/.exec(location.hash) || [])[1];
+      var progress = document.getElementById('progress');
       var show = function (id) {
+        progress.textContent = '';
         ['ready', 'done', 'failed'].forEach(function (s) { document.getElementById(s).hidden = s !== id; });
+        document.getElementById(id).querySelector('h1').focus();
       };
       var fail = function (text) { document.getElementById('failedText').textContent = text; show('failed'); };
 
@@ -53,6 +58,7 @@
         button.addEventListener('click', function () {
           button.disabled = true;
           button.textContent = 'Confirming…';
+          progress.textContent = 'Confirming your account.';
           fetch(ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
