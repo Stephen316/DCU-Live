@@ -29,7 +29,7 @@
 
 <main class="wrap document">
 <h1>Privacy policy</h1>
-<p class="updated">Last updated 6 November 2026</p>
+<p class="updated">Last updated <time datetime="2026-11-17">17 November 2026</time></p>
 
 <p>DCU Live is built and run by Stephen Harcourt, an independent student developer. I am the data controller for the personal data the app handles. The app is not affiliated with or endorsed by Dublin City University (DCU).</p>
 <p>Contact: <a href="mailto:stephenharcourt6@gmail.com">stephenharcourt6@gmail.com</a></p>
@@ -37,8 +37,8 @@
 <h2>The short version</h2>
 <ul>
   <li>You sign in with your DCU email so the app knows you're a DCU student.</li>
-  <li>It stores what it needs to show your timetable and to run the shared features. Nothing else.</li>
-  <li>No advertising, no analytics, no tracking, and nothing is sold or shared for marketing.</li>
+  <li>Your <a href="#student-number">student number</a> helps match you to your class group. If you scan your card, only the number is sent when you complete setup.</li>
+  <li>I do not sell your personal data or use it for advertising.</li>
   <li>You can delete your account from inside the app at any time.</li>
 </ul>
 
@@ -47,7 +47,7 @@
   <tr><th>Data</th><th>Why</th></tr>
   <tr><td>Your DCU email address and a password (stored only in hashed form)</td><td>To create your account and to confirm you are a DCU student.</td></tr>
   <tr><td>Your name, taken from your email address</td><td>To match you to your class list, so the app can show the groups you are in.</td></tr>
-  <tr><td>Your student number, read from the barcode on your student card or typed in. The photo of your card is read on your iPhone and is never saved or sent anywhere; only the number is.</td><td>To tell you apart from someone with the same name on a class list.</td></tr>
+  <tr><td>Your <a href="#student-number">student number</a></td><td>To match you to your class group, including when students share a name.</td></tr>
   <tr><td>Your programme and groups</td><td>To show the right timetable.</td></tr>
   <tr><td>An account ID and a short public ID</td><td>To run your account. You give the public ID to an administrator only if you want to become a trusted reporter.</td></tr>
   <tr><td>What you share: deadlines, confirmations that a deadline is right, and reports that a class was cancelled or went ahead</td><td>To show them to other students taking the same modules. Students do not see who shared what.</td></tr>
@@ -57,10 +57,15 @@
 <p>Kept only on your iPhone, and never sent anywhere: classes you mark as not attending, groups you hide, your appearance setting, and a copy of your timetable so it works offline.</p>
 <p>Your iPhone fetches timetable data directly from DCU's timetable provider, Scientia. No account details are sent with that request.</p>
 
+<h2 id="student-number">Your student number</h2>
+<p>Account setup asks for your student number to help match you to your class group. You can type it in or scan the barcode on your student card. The barcode is read on your device. Only the number is sent when you complete setup. Camera images stay on your device during the scan and are discarded.</p>
+<p>Your student number is stored in your DCU Live profile. Database access rules limit profile access to you and authorised administrators. If the number needs correcting, <a href="mailto:stephenharcourt6@gmail.com">email me</a> to ask for a correction. Leave your student number and card image out of the email.</p>
+
 <h2>Class lists</h2>
-<p>An administrator may upload a class list for a programme, supplied by the course, which says which group each student is in. While the list is being read, it is sent to Mistral AI, which works out its layout. What is stored afterwards is not your name. Each entry is turned into a keyed code that can't be reversed into a name, and stored with your group and, if the list has one, your student number. When you sign in, the app works out your code from your name and looks up your group.</p>
+<p>An administrator may upload a class list supplied by a course to match students to their groups. Depending on the format and how the list is imported, the admin console may send the document or its extracted contents to Mistral AI to read it. This can include student names and numbers.</p>
+<p>The saved list uses a code generated from each name, alongside the student's group and their student number if one was supplied. The list is kept separately from user profiles. The app uses it to look up your group, and students can see their own match.</p>
 <p>If someone else on the list has the same name as you, the app asks which lab subgroup you're in and uses your answer only for that lookup, to tell the two of you apart. If your name and student number don't match the same entry on the list, the app doesn't guess: it keeps you on your programme's general timetable and records that the two disagree, so an administrator can sort it out. The record says which list it was and what disagreed, not the number you entered, and administrators see it by your public ID, not your name.</p>
-<p>A class list is replaced when a new one is uploaded, and an administrator can delete it at any time.</p>
+<p>Administrators can add to, replace or delete a class list. Deleting your account removes your student number from your profile. An entry supplied by your course can stay on the class list until it is replaced or deleted. Email me if you want to ask about that entry.</p>
 
 <h2>Google Calendar</h2>
 <p>If you choose Export to Calendar → Add to Google Calendar, you sign in with Google and allow the app to make calendars in your Google account and manage the events in them, and nothing else. It cannot see or change any other calendar or event of yours.</p>
@@ -75,14 +80,15 @@
   <li><strong>Supabase</strong>: hosts the database and sign-in, in the EU (Frankfurt).</li>
   <li><strong>Vercel</strong>: hosts the administrators' website.</li>
   <li><strong>Google</strong>: only if you add your classes to Google Calendar, as described above.</li>
-  <li><strong>Mistral AI</strong> (France): reads the documents administrators upload: class lists, lab rotations, and notices of which surnames go to which class. It does so only at the moment of upload.</li>
+  <li><strong>Mistral AI</strong>: helps the admin console read uploaded documents such as class lists, lab rotations and group notices.</li>
+  <li><strong>Resend</strong>: receives your DCU email address and the message it delivers when you request a sign-up email.</li>
+  <li><strong>Sentry</strong>: receives error reports and performance diagnostics from the admin console.</li>
 </ul>
-<p>Each processes the data only to provide its service.</p>
 
 <h2>How long it is kept</h2>
 <ul>
-  <li><strong>Your account and profile:</strong> until you delete your account.</li>
-  <li><strong>Deadlines and cancellation reports you shared:</strong> stay after you delete your account so classmates still have them, but nothing links them to you any more.</li>
+  <li><strong>Your account and profile:</strong> until you delete your account. This includes the student number you entered or scanned.</li>
+  <li><strong>Deadlines and cancellation reports you shared:</strong> stay after you delete your account so classmates still have them. The app removes the link to your account.</li>
   <li><strong>Your reports about content, and the people you hide:</strong> deleted with your account.</li>
   <li><strong>Class list entries:</strong> until the list is replaced or deleted.</li>
   <li><strong>Records that your name and student number disagree with a class list:</strong> until you delete your account.</li>

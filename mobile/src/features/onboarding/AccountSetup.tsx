@@ -1,12 +1,14 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { Link } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
 import { StudentNumber } from '../../core/identity';
 import { errorMessage, isNotSignedIn } from '../../data/rest';
 import { useServices } from '../../state/hooks';
 import { Txt } from '../../ui/components';
+import { AppLinks } from '../../ui/links';
 import { PlusWord } from '../../ui/PlusWord';
-import { Space, useTheme } from '../../ui/theme';
+import { Space, Type, useTheme } from '../../ui/theme';
 import Stepper, { Step } from './Stepper';
 import { StudentID } from './StudentID';
 import { SetupSurface } from './SetupSurface';
@@ -119,30 +121,46 @@ export function AccountSetup({ onSaved, onSignOut }: { onSaved: (number: string)
           {linkError ? <Txt accessibilityLiveRegion="polite">Couldn’t open the <PlusWord /> page. Try again.</Txt> : null}
         </Step>
         <Step title="Profile">
-          {manual ? (
-            <View style={styles.cameraStep}>
-              <Txt type="title3" accessibilityRole="header" style={styles.cameraTitle}>Enter your student number</Txt>
-              <View style={styles.numberEntry}>
-                <StudentNumberField
-                  value={entry}
-                  disabled={saving}
-                  onChange={(value) => { setEntry(value); setSaveError(null); }}
-                  onSubmit={() => { if (number) setStep(4); }}
-                />
-                <Txt type="footnote" color={theme.inkSecondary} style={styles.entryHelp}>The letter and eight digits on your student ID.</Txt>
-                <Txt type="caption" color={theme.inkSecondary} style={styles.entryHelp}>Once saved, only an admin can change it.</Txt>
-              </View>
-              <SetupButton variant="outline" title="Use camera" disabled={saving} onPress={() => setCamera(true)} />
+          <View style={styles.cameraStep}>
+            <Txt type="title3" accessibilityRole="header" style={styles.cameraTitle}>
+              {manual ? 'Enter your student number' : 'Scan your student card'}
+            </Txt>
+            <View style={styles.privacyNotice}>
+              <Txt type="footnote" color={theme.inkSecondary} style={styles.entryHelp}>
+                {manual
+                  ? 'Your student number helps match you to your class group.'
+                  : 'Your device reads the barcode. Only the student number is sent when you complete setup.'}
+              </Txt>
+              <Link
+                href={`${AppLinks.privacy}#student-number`}
+                target="_blank"
+                rel="noreferrer"
+                style={[styles.privacyLink, { color: theme.accent }]}
+              >
+                Privacy policy
+              </Link>
             </View>
-          ) : (
-            <View style={styles.cameraStep}>
-              <Txt type="title3" accessibilityRole="header" style={styles.cameraTitle}>Take a photo of your student ID</Txt>
+            {manual ? (
+              <>
+                <View style={styles.numberEntry}>
+                  <StudentNumberField
+                    value={entry}
+                    disabled={saving}
+                    onChange={(value) => { setEntry(value); setSaveError(null); }}
+                    onSubmit={() => { if (number) setStep(4); }}
+                  />
+                  <Txt type="footnote" color={theme.inkSecondary} style={styles.entryHelp}>The letter and eight digits on your student ID.</Txt>
+                  <Txt type="caption" color={theme.inkSecondary} style={styles.entryHelp}>Once saved, only an admin can change it.</Txt>
+                </View>
+                <SetupButton variant="outline" title="Use camera" disabled={saving} onPress={() => setCamera(true)} />
+              </>
+            ) : (
               <View style={styles.cameraActions}>
                 <SetupButton title="Open camera" icon={<Ionicons name="camera-outline" size={18} color={theme.onAccent} />} onPress={() => setCamera(true)} />
                 <SetupButton variant="outline" title="Other methods" onPress={() => setManual(true)} />
               </View>
-            </View>
-          )}
+            )}
+          </View>
         </Step>
         <Step title="Review">
           <View style={styles.cameraStep}>
@@ -175,6 +193,8 @@ const styles = StyleSheet.create({
   reviewDivider: { borderTopWidth: StyleSheet.hairlineWidth },
   studentNumber: { fontVariant: ['tabular-nums'] },
   numberEntry: { width: '100%', maxWidth: 300, gap: Space.s },
+  privacyNotice: { alignItems: 'center', width: '100%', maxWidth: 300 },
+  privacyLink: { ...Type.footnote, paddingVertical: Space.m, paddingHorizontal: Space.s, textDecorationLine: 'underline' },
   entryHelp: { textAlign: 'center' },
   cameraStep: { alignItems: 'center', gap: Space.l, paddingVertical: Space.s },
   cameraTitle: { textAlign: 'center', fontSize: 17, lineHeight: 22 },
