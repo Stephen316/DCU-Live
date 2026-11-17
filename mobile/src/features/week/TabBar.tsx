@@ -4,6 +4,7 @@ import { Animated, Easing, LayoutChangeEvent, Linking, PanResponder, Platform, P
 import { useTutorial, useTutorialTarget } from '../tutorial/Tutorial';
 import { TutorialText } from '../../core/tutorial';
 import { AppLinks } from '../../ui/links';
+import { choiceKeys } from '../../ui/accessibility';
 import { Icon, IconName, Txt } from '../../ui/components';
 import { DesktopRail, FloatingBar, floatingBarMargin, useDesktopRail } from '../../ui/floatingBar';
 import { Desktop, elevation, Palette, Space, useTheme, withAlpha } from '../../ui/theme';
@@ -68,7 +69,7 @@ function RailTabBar(props: TabBarProps) {
 
   return (
     <View style={styles.rail} pointerEvents="box-none">
-      <View style={[styles.railPill, { backgroundColor: theme.surface }, elevation(theme, 'float')]} accessibilityRole="tablist">
+      <View style={[styles.railPill, { backgroundColor: theme.surface }, elevation(theme, 'float')]} accessibilityRole="tablist" accessibilityLabel="App tabs" aria-orientation="vertical">
         <Animated.View pointerEvents="none" style={[styles.railIndicator, { transform: [{ translateY: offset }] }]}>
           <View style={[styles.halo, { backgroundColor: haloColor(theme) }]}>
             <View style={[styles.disc, { backgroundColor: theme.accent }]} />
@@ -88,6 +89,10 @@ function RailTabBar(props: TabBarProps) {
               onHoverIn={() => setHovered(i)}
               onHoverOut={() => setHovered((h) => (h === i ? null : h))}
               accessibilityRole="tab"
+              {...choiceKeys(isSelected)}
+              nativeID={`app-tab-${route.name}`}
+              aria-selected={isSelected}
+              aria-controls={`app-panel-${isSelected ? state.routes[state.index].name : route.name}`}
               accessibilityLabel={name}
               accessibilityState={{ selected: isSelected }}
               style={({ pressed }) => [styles.railTab, { opacity: pressed && !isSelected ? 0.5 : 1 }]}
@@ -253,7 +258,7 @@ function BottomTabBar(props: TabBarProps) {
           theme.scheme === 'dark' ? { borderWidth: StyleSheet.hairlineWidth, borderColor: theme.separator } : null,
         ]}
       >
-        <View style={styles.slider} onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} accessibilityRole="tablist" {...responder.panHandlers}>
+        <View style={styles.slider} onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)} accessibilityRole="tablist" accessibilityLabel="App tabs" {...responder.panHandlers}>
           {tabWidth > 0 ? (
             <Animated.View pointerEvents="none" style={[styles.indicator, { width: tabWidth, transform: [{ translateX: offset }] }]}>
               <View style={[styles.halo, { backgroundColor: haloColor(theme) }]}>
@@ -271,6 +276,10 @@ function BottomTabBar(props: TabBarProps) {
                 ref={tutorialRefs[route.name]}
                 onPress={() => go(i)}
                 accessibilityRole="tab"
+                {...choiceKeys(position === i)}
+                nativeID={`app-tab-${route.name}`}
+                aria-selected={position === i}
+                aria-controls={`app-panel-${position === i ? state.routes[state.index].name : route.name}`}
                 accessibilityLabel={options.title ?? route.name}
                 accessibilityState={{ selected: position === i }}
                 style={({ pressed }) => [styles.tab, { opacity: pressed && !isSelected ? 0.5 : 1 }]}

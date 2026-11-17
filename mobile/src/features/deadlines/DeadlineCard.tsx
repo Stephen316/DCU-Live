@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Deadline, deadlineKindLabel, displayTitle } from '../../core/deadline';
-import { daysBetween, formatTime, monthName, weekdayShort } from '../../core/time';
+import { daysBetween, formatComplete, formatTime, monthName, weekdayShort } from '../../core/time';
 import { Avatar, Icon, Txt, useReduceMotion } from '../../ui/components';
 import { deadlineTint } from '../../ui/meaning';
 import { useNow } from '../../state/hooks';
 import { elevation, MIN_TARGET, moduleTint, Radius, Space, useTheme, withAlpha } from '../../ui/theme';
+import { DeadlineCheckbox } from './DeadlineCheckbox';
 import { CompletionSweep, moduleInitials } from './DeadlineRows';
 
 const SWEEP_MS = 520;
@@ -48,7 +49,7 @@ export function DeadlineCard({
    */
   disputed?: boolean;
   /** Called once the card has finished its animation. */
-  onToggle: () => void;
+  onToggle: (restoreFocus?: boolean) => void;
   onOpen: () => void;
   /** Ticking moves it to another list, so it leaves this one; on a class's page it stays. */
   leaves?: boolean;
@@ -66,20 +67,26 @@ export function DeadlineCard({
   const [sweeping, setSweeping] = useState(false);
   const busy = shownTick !== null;
   const ticked = shownTick ?? completed;
+  const checkbox = useRef<View>(null);
+
+  const finishToggle = () => {
+    const control = checkbox.current as unknown as HTMLElement | null;
+    onToggle(Platform.OS === 'web' && !!control?.contains(document.activeElement));
+  };
 
   const leave = () => {
     Animated.sequence([
       Animated.timing(give, { toValue: 0, duration: GIVE_MS, easing: Easing.out(Easing.quad), useNativeDriver: false }),
       Animated.timing(close, { toValue: 0, duration: CLOSE_MS, easing: Easing.inOut(Easing.cubic), useNativeDriver: false }),
-    ]).start(() => onToggle());
+    ]).start(({ finished }) => { if (finished) finishToggle(); });
   };
 
   const press = () => {
     if (busy) return;
-    if (reduceMotion || height === null) return onToggle();
+    if (reduceMotion || height === null) return finishToggle();
     if (completed) {
       // Taking it back needs no celebration: the circle empties, and the card goes back.
-      if (!leaves) return onToggle();
+      if (!leaves) return finishToggle();
       setShownTick(false);
       return leave();
     }
@@ -92,7 +99,7 @@ export function DeadlineCard({
       if (!leaves) {
         setSweeping(false);
         setShownTick(null);
-        return onToggle();
+        return finishToggle();
       }
       // A beat on the finished tick before the card goes.
       setTimeout(leave, 140);
@@ -128,32 +135,24 @@ export function DeadlineCard({
           transform: [{ scale: Animated.add(give.interpolate({ inputRange: [0, 1], outputRange: [0.95, 1] }), close.interpolate({ inputRange: [0, 1], outputRange: [-0.05, 0] })) }],
         }}
       >
-        <Pressable
-          onPress={onOpen}
-          accessibilityRole="button"
-          accessibilityLabel={`${displayTitle(deadline)}, ${deadlineKindLabel(deadline.kind)}${graded ? `, graded, ${deadline.gradeWeight}%` : ''}, ${moduleName}, due ${dueLabel(deadline.due, now)}${disputed ? ', reported wrong' : ''}${completed ? ', completed' : ''}`}
-          accessibilityHint="Opens it"
-          style={({ pressed }) => [
-            styles.card,
-            { backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 },
-            elevation(theme),
-            // After the elevation, whose dark-mode hairline border it replaces.
-            graded && { borderWidth: 2, borderColor: gradedTint, boxShadow: `0 0 0 3px ${withAlpha(gradedTint, 0.18)}` },
-          ]}
-        >
+        <View style={[
+          styles.card, { backgroundColor: theme.surface }, elevation(theme),
+          // After the elevation, whose dark-mode hairline border it replaces.
+          graded && { borderWidth: 2, borderColor: gradedTint, boxShadow: `0 0 0 3px ${withAlpha(gradedTint, 0.18)}` },
+        ]}>
+          <View ref={checkbox} style={styles.circleHit}>
+            <DeadlineCheckbox label={`Mark ${displayTitle(deadline)} done`} checked={completed} busy={busy} onToggle={press}>
+              <View style={[styles.circle, { borderColor: ticked ? done : theme.rail, backgroundColor: ticked ? withAlpha(done, 0.14) : 'transparent' }]}>
+                {ticked ? <Icon name="check" size={16} color={done} /> : null}
+              </View>
+            </DeadlineCheckbox>
+          </View>
           <Pressable
-            onPress={press}
-            hitSlop={Space.xs}
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: completed }}
-            accessibilityLabel={completed ? `Mark ${displayTitle(deadline)} not done` : `Mark ${displayTitle(deadline)} done`}
-            style={styles.circleHit}
+            onPress={onOpen}
+            accessibilityRole="button"
+            accessibilityLabel={`${displayTitle(deadline)}, ${deadlineKindLabel(deadline.kind)}${graded ? `, graded, ${deadline.gradeWeight}%` : ''}, ${moduleName}, due ${formatComplete(deadline.due)}${disputed ? ', reported wrong' : ''}${completed ? ', completed' : ''}`}
+            style={({ pressed }) => [styles.body, pressed && styles.faded]}
           >
-            <View style={[styles.circle, { borderColor: ticked ? done : theme.rail, backgroundColor: ticked ? withAlpha(done, 0.14) : 'transparent' }]}>
-              {ticked ? <Icon name="check" size={16} color={done} /> : null}
-            </View>
-          </Pressable>
-          <View style={styles.body}>
             <View style={styles.titleRow}>
               <Txt type="headline" numberOfLines={2} style={[styles.title, styles.shrink, ticked && styles.faded]}>{displayTitle(deadline)}</Txt>
               {disputed ? (
@@ -179,10 +178,10 @@ export function DeadlineCard({
               </View>
               <Txt type="footnote" color={theme.inkSecondary} style={styles.time}>{dueLabel(deadline.due, now)}</Txt>
             </View>
-          </View>
+          </Pressable>
           {/* The wash runs over the whole card, clipped to its corners. */}
           {sweeping ? <View style={styles.washClip}><CompletionSweep progress={sweep} /></View> : null}
-        </Pressable>
+        </View>
       </Animated.View>
     </Animated.View>
   );
@@ -191,12 +190,12 @@ export function DeadlineCard({
 const styles = StyleSheet.create({
   wrap: { marginBottom: Space.s, overflow: 'visible' },
   card: {
-    flexDirection: 'row', alignItems: 'center', gap: Space.xs, paddingVertical: Space.m + 2, paddingRight: Space.l, paddingLeft: Space.xs,
+    flexDirection: 'row', alignItems: 'center', gap: Space.xs, paddingLeft: Space.xs,
     borderRadius: Radius.card + 2,
   },
-  circleHit: { width: MIN_TARGET, height: MIN_TARGET, alignItems: 'center', justifyContent: 'center' },
+  circleHit: { width: MIN_TARGET, height: MIN_TARGET },
   circle: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
-  body: { flex: 1, gap: Space.s },
+  body: { flex: 1, gap: Space.s, paddingVertical: Space.m + 2, paddingRight: Space.l },
   title: { fontWeight: '700' },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: Space.s },
   flag: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },

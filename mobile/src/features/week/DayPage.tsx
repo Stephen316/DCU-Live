@@ -76,7 +76,7 @@ export function DayPage({
         headRef={dayHeading}
         empty={!isLoading && shown.length === 0 ? {
           title: 'No classes',
-          message: editing ? 'Your course has nothing on this day.' : 'Swipe left or right for the rest of the week.',
+          message: editing ? 'Your course has nothing on this day.' : 'Use Previous day or Next day to see other days.',
         } : null}
         renderColumn={(_, width) => (
           <>

@@ -1,6 +1,7 @@
 import { RefObject, useRef, useState } from 'react';
-import { Modal, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Icon, Label, SheetAction, Txt } from './components';
+import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { dialogBackdrop, Icon, Label, SheetAction, Txt } from './components';
+import { AccessibleModal } from './AccessibleModal';
 import { CardInset, elevation, Radius, Space, useTheme, withAlpha } from './theme';
 
 /**
@@ -8,7 +9,8 @@ import { CardInset, elevation, Radius, Space, useTheme, withAlpha } from './them
  * as iOS's pull-down menus do — rather than a tray rising from the far end of the screen. A
  * tap outside closes it; so does choosing.
  */
-export function DropdownMenu({ visible, anchor, actions, onClose, align = 'right' }: {
+export function DropdownMenu({ label, visible, anchor, actions, onClose, align = 'right' }: {
+  label: string;
   visible: boolean;
   /** The button it hangs from. */
   anchor: RefObject<View | null>;
@@ -56,8 +58,8 @@ export function DropdownMenu({ visible, anchor, actions, onClose, align = 'right
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onShow={measure} onRequestClose={onClose} onDismiss={runPending}>
-      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
+    <AccessibleModal label={label} visible={visible} transparent animationType="fade" onShow={measure} onRequestClose={onClose} onDismiss={runPending}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} {...dialogBackdrop} />
       {/* Drawn once it's measured, so it never flashes up in the wrong place. */}
       <View
         onLayout={place ? undefined : measure}
@@ -73,8 +75,10 @@ export function DropdownMenu({ visible, anchor, actions, onClose, align = 'right
           <View key={action.label}>
             {i > 0 ? <View style={[styles.hairline, { backgroundColor: theme.separator }]} /> : null}
             <Pressable
-              accessibilityRole="menuitem"
-              accessibilityState={{ selected: !!action.selected }}
+              accessibilityRole="button"
+              aria-pressed={action.selected}
+              accessibilityState={{ selected: action.selected }}
+              accessibilityLabel={action.label}
               onPress={() => choose(action)}
               style={({ pressed }) => [styles.row, action.selected && { backgroundColor: withAlpha(theme.accent, theme.scheme === 'dark' ? 0.18 : 0.08) }, pressed && { backgroundColor: theme.raised }]}
             >
@@ -89,8 +93,16 @@ export function DropdownMenu({ visible, anchor, actions, onClose, align = 'right
             </Pressable>
           </View>
         ))}
+        <View style={[styles.hairline, { backgroundColor: theme.separator }]} />
+        <Pressable
+          onPress={onClose}
+          accessibilityRole="button"
+          style={({ pressed }) => [styles.row, pressed && { backgroundColor: theme.raised }]}
+        >
+          <Txt color={theme.accent}>Cancel</Txt>
+        </Pressable>
       </View>
-    </Modal>
+    </AccessibleModal>
   );
 }
 

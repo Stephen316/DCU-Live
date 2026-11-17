@@ -1,7 +1,8 @@
-import { router } from 'expo-router';
-import { ReactNode, useEffect, useRef, useState } from 'react';
-import { AppState, StyleSheet, View } from 'react-native';
-import { addDays, daysBetween, formatDayMonth, isSameDay, isToday, isTomorrow, startOfDay, weekdayName, WeekHeading } from '../../core/time';
+import { router, useFocusEffect } from 'expo-router';
+import { useIsFocused } from 'expo-router/react-navigation';
+import { ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AppState, Platform, StyleSheet, View } from 'react-native';
+import { addDays, daysBetween, formatDayMonth, formatWeekdayDayMonth, isSameDay, isToday, isTomorrow, startOfDay, startOfWeek, weekdayName, WeekHeading } from '../../core/time';
 import { WeekdayIndex } from '../../core/misc';
 import { TimetableEvent } from '../../core/timetableEvent';
 import { listenForMacAlertTaps } from '../../data/macShell';
@@ -10,6 +11,7 @@ import { listenForAlertTaps } from '../../data/notifications';
 import { useAppEvent, useModel, useNow } from '../../state/hooks';
 import { useRoot, useWeekModel } from '../../state/root';
 import { EmptyState, IconButton, Label, PillButton, PrimaryButton, ScreenHeader, Txt } from '../../ui/components';
+import { StatusMessage } from '../../ui/accessibility';
 import { LoadingScreen } from '../../ui/LoadingScreen';
 import { Space, useTheme } from '../../ui/theme';
 import { useTutorial } from '../tutorial/Tutorial';
@@ -27,17 +29,54 @@ import { WeekGridView } from './WeekGrid';
  */
 export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week'; owner?: boolean }) {
   const theme = useTheme();
+  const focused = useIsFocused();
   const { subgroupQuestion } = useRoot();
   const model = useModel(useWeekModel());
   const now = useNow();
   // Said relative to today, so it moves on by itself when Monday comes.
   const shownWeek = model.weeks[model.weekIndex];
   const heading = shownWeek ? WeekHeading.of(shownWeek.firstDay, shownWeek.label, now) : null;
-  // The Mac app and a desktop-wide window are the week and the deadlines: the day list is a
-  // phone's view. Their week has arrows and Today beside its title.
-  const weekControls = useWeekFirst() && mode === 'week';
   const showsCalendar = mode === 'week';
-  const weekPager = useRef<PagerControl>(null);
+  const desktopWeek = useWeekFirst() && showsCalendar;
+  const pager = useRef<PagerControl>(null);
+  const screen = useRef<View>(null);
+  const classTrigger = useRef<string | null>(null);
+  const focusDay = useRef(false);
+  const pageIndex = showsCalendar ? model.weekIndex : WeekdayIndex.flat(model.weekIndex, model.dayIndex);
+  const pageCount = showsCalendar ? model.weeks.length : model.weeks.length * WeekdayIndex.daysPerWeek;
+
+  useFocusEffect(useCallback(() => {
+    const id = classTrigger.current;
+    if (id === null) return;
+    const deadline = Date.now() + 500;
+    let frame: number;
+    const restore = () => {
+      const element = screen.current as unknown as HTMLElement | null;
+      if (element?.contains(document.activeElement)) {
+        classTrigger.current = null;
+        return;
+      }
+      const trigger = element?.querySelector<HTMLElement>(`[data-class-id="${CSS.escape(id)}"]:not([inert] *)`);
+      // The tab can restore before the pager has measured and drawn its class buttons.
+      if (!trigger && Date.now() < deadline) {
+        frame = requestAnimationFrame(restore);
+        return;
+      }
+      classTrigger.current = null;
+      (trigger ?? element?.querySelector<HTMLElement>('[data-screen-heading]'))?.focus({ preventScroll: true });
+    };
+    frame = requestAnimationFrame(restore);
+    return () => cancelAnimationFrame(frame);
+  }, []));
+
+  // A date tab belongs to the pager's old page. Transfer its focus to the selected tab
+  // in the new page, even if both pages are kept mounted for the animation.
+  useLayoutEffect(() => {
+    if (!focusDay.current) return;
+    focusDay.current = false;
+    (screen.current as unknown as HTMLElement | null)
+      ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]:not([inert] *)')?.focus({ preventScroll: true });
+  }, [pageIndex]);
   /** Edit timetable: the course's other classes show as ghosts, and a tap adds or removes. */
   const [editing, setEditing] = useState(false);
   const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
@@ -77,7 +116,10 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
   useAppEvent('moduleAbbreviationsChanged', () => owner && model.reloadAbbreviations());
   useAppEvent('labRotationChanged', () => owner && void model.reloadAll());
 
-  const open = (event: TimetableEvent) => router.push({ pathname: '/class/[id]', params: { id: event.id } });
+  const open = (event: TimetableEvent) => {
+    if (Platform.OS === 'web') classTrigger.current = event.id;
+    router.push({ pathname: '/class/[id]', params: { id: event.id } });
+  };
   const askToEdit = (event: TimetableEvent, kind: EditKind) => setPendingEdit({ event, kind });
 
   let body: ReactNode;
@@ -97,7 +139,7 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
         count={Math.max(model.weeks.length, 1)}
         index={model.weekIndex}
         onIndexChange={(i) => model.setWeekIndex(i)}
-        controlRef={weekPager}
+        controlRef={pager}
         locked={tutorial ? !tutorial.swipeAllowed : false}
         onDragChange={tutorial?.setDragging}
         renderPage={(i) => (
@@ -123,13 +165,14 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
       <Pager
         count={Math.max(model.weeks.length * WeekdayIndex.daysPerWeek, 1)}
         index={WeekdayIndex.flat(model.weekIndex, model.dayIndex)}
+        controlRef={pager}
         swipe="easy"
         locked={tutorial ? !tutorial.swipeAllowed : false}
         onDragChange={tutorial?.setDragging}
         onIndexChange={(i) => {
           const { week, day } = WeekdayIndex.split(i);
           model.setDay(week, day);
-          tutorial?.signal('daySwiped');
+          if (i > pageIndex) tutorial?.signal('daySwiped');
         }}
         renderPage={(i) => {
           const { week, day: offset } = WeekdayIndex.split(i);
@@ -150,7 +193,15 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
               onEdit={askToEdit}
               onPick={(picked) => {
                 const offset = firstDay ? daysBetween(startOfDay(firstDay), startOfDay(picked)) : 0;
-                if (offset >= 0 && offset < WeekdayIndex.daysPerWeek) model.setDay(week, offset);
+                const destination = WeekdayIndex.flat(week, offset);
+                if (offset < 0 || offset >= WeekdayIndex.daysPerWeek || destination === pageIndex) return;
+                if (Platform.OS === 'web') {
+                  const element = screen.current as unknown as HTMLElement | null;
+                  focusDay.current = !!element?.contains(document.activeElement) &&
+                    document.activeElement?.getAttribute('role') === 'tab';
+                }
+                model.setDay(week, offset);
+                if (destination > pageIndex) tutorial?.signal('daySwiped');
               }}
             />
           );
@@ -164,16 +215,24 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
   const dayLine = shownDay ? (isToday(shownDay, now) ? 'Today' : isTomorrow(shownDay, now) ? 'Tomorrow' : formatDayMonth(shownDay)) : '';
   // With the arrows, the week's number sits between them, so the middle doesn't say it again:
   // "This week" alone, or the month for a week further off (whose heading would be its number).
-  const numbered = weekControls && !!shownWeek && heading?.title === `Week ${shownWeek.label}`;
-  const weekTitle = weekControls ? (numbered ? heading?.detail : heading?.title) ?? '' : heading?.title ?? '';
-  const weekDetail = weekControls ? '' : heading?.detail ?? '';
+  const numbered = desktopWeek && !!shownWeek && heading?.title === `Week ${shownWeek.label}`;
+  const weekTitle = desktopWeek ? (numbered ? heading?.detail : heading?.title) ?? '' : heading?.title ?? '';
+  const weekDetail = desktopWeek ? '' : heading?.detail ?? '';
   const title = editing ? 'Edit timetable' : showsCalendar ? weekTitle : shownDay ? weekdayName(shownDay) : '';
   const detail = editing
     ? (showsCalendar ? weekTitle : shownDay ? `${weekdayName(shownDay)} ${formatDayMonth(shownDay)}` : '') ?? ''
     : showsCalendar ? weekDetail : [dayLine, heading?.detail].filter(Boolean).join(' · ');
 
+  const period = showsCalendar ? 'week' : 'day';
+  const weekStart = shownWeek ? startOfWeek(shownWeek.firstDay) : null;
+  const weekEnd = weekStart ? addDays(weekStart, 4) : null;
+  const dateStatus = showsCalendar && weekStart && weekEnd && heading
+    ? `${heading.title}, ${formatDayMonth(weekStart)}${weekStart.getFullYear() !== weekEnd.getFullYear() ? ` ${weekStart.getFullYear()}` : ''} to ${formatDayMonth(weekEnd)} ${weekEnd.getFullYear()}`
+    : shownDay ? formatWeekdayDayMonth(shownDay) : '';
+
   return (
-    <View style={[styles.fill, { backgroundColor: theme.canvas }]}>
+    <View ref={screen} collapsable={false} style={[styles.fill, { backgroundColor: theme.canvas }]}>
+      <StatusMessage message={focused ? dateStatus : ""} />
       <ScreenHeader
         title={title}
         subtitle={
@@ -182,20 +241,20 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
             {model.campusName && !editing ? <Label icon="place" text={model.campusName} type="footnote" color={theme.inkSecondary} /> : null}
           </View>
         }
-        left={weekControls ? (
+        left={shownWeek ? (
           <>
-            <IconButton icon="back" label="Previous week" onPress={() => weekPager.current?.turn(-1)} />
+            <IconButton icon="back" label={`Previous ${period}`} disabled={pageIndex === 0} onPress={() => pager.current?.turn(-1)} />
             {/* Which week the arrows are on, so turning them reads as counting through the term. */}
-            {shownWeek ? (
+            {desktopWeek ? (
               <Txt type="subheadline" style={styles.weekNumber} numberOfLines={1}>Week {shownWeek.label}</Txt>
             ) : null}
-            <IconButton icon="forward" label="Next week" onPress={() => weekPager.current?.turn(1)} />
+            <IconButton icon="forward" label={`Next ${period}`} disabled={pageIndex >= pageCount - 1} onPress={() => pager.current?.turn(1)} />
           </>
         ) : undefined}
         right={
           // Editing lives here and only here: on the day and the week, the two places a class can be added or dropped.
           <>
-            {weekControls && !editing ? <PillButton title="Today" onPress={() => model.showCurrentWeek()} /> : null}
+            {desktopWeek && !editing ? <PillButton title="Today" onPress={() => model.showCurrentWeek()} /> : null}
             {editing
               ? <PillButton title="Done" filled onPress={() => setEditing(false)} />
               : <PillButton title="Edit" icon="edit" label="Edit timetable" onPress={() => setEditing(true)} />}

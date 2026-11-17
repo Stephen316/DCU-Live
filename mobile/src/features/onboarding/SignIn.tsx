@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { Linking, StyleSheet, TextInput, View } from 'react-native';
 import { DCUEmail, parseDCUEmail, parseSignInEmail, PasswordValidation } from '../../core/identity';
 import { AuthError, AuthService } from '../../data/auth';
@@ -6,6 +6,7 @@ import { errorMessage } from '../../data/rest';
 import { AuthenticatedUser } from '../../data/session';
 import { PrefKey } from '../../data/storage';
 import { useServices } from '../../state/hooks';
+import { StatusMessage } from '../../ui/accessibility';
 import { AppLinks } from '../../ui/links';
 import { ActionRow, ListScroll, PrimaryButton, Row, Section, Segmented, Txt } from '../../ui/components';
 import { Space, useTheme } from '../../ui/theme';
@@ -40,6 +41,9 @@ export function SignIn({ onSignedIn, notice }: { onSignedIn: (user: Authenticate
   // student for their DCU address, since that is what nearly everyone should be typing.
   const email = mode === 'signIn' ? parseSignInEmail(address) : parseDCUEmail(address);
   const addressLooksWrong = address.length > 0 && parseDCUEmail(address) === null;
+  const addressHelp = 'Use your DCU email address, ending @mail.dcu.ie or @dcu.ie';
+  const emailHelpID = useId();
+  const passwordHelpID = useId();
   const problem = PasswordValidation.problem(password, confirmPassword);
   const canSubmit =
     email !== null && password.length > 0 && !busy &&
@@ -117,6 +121,9 @@ export function SignIn({ onSignedIn, notice }: { onSignedIn: (user: Authenticate
 
   return (
     <ListScroll>
+      <StatusMessage message={!awaiting && mode === "createAccount" && problem ? PasswordValidation.message(problem) : ""} />
+      <StatusMessage message={message ?? (awaiting ? `Check your email. A confirmation link was sent to ${awaiting.address}.` : '')} />
+      <StatusMessage message={!awaiting && addressLooksWrong ? addressHelp : ''} />
       <ScreenTitle title="DCU Live" />
       <Section bare>
         <Txt type="subheadline" color={theme.inkSecondary} style={styles.intro}>
@@ -129,7 +136,7 @@ export function SignIn({ onSignedIn, notice }: { onSignedIn: (user: Authenticate
           {/* Confirming happens in the browser, so the app can't observe it — Continue asks again. */}
           <Section>
             <Row>
-              <Txt type="headline">Check your email</Txt>
+              <Txt type="headline" accessibilityRole="header">Check your email</Txt>
               <Txt color={theme.inkSecondary}>{`We've sent a link to ${awaiting.address}. Open it and press "Confirm my account", then come back here. Your account is only created at that point.`}</Txt>
             </Row>
           </Section>
@@ -196,10 +203,12 @@ export function SignIn({ onSignedIn, notice }: { onSignedIn: (user: Authenticate
                 autoComplete="email"
                 style={[styles.input, { color: theme.ink }]}
                 accessibilityLabel="Email"
+                aria-invalid={addressLooksWrong && email === null}
+                aria-describedby={addressLooksWrong ? emailHelpID : undefined}
               />
               {addressLooksWrong ? (
                 // Said as what to use, not "invalid": a Gmail address is a real one, just not a DCU one.
-                <Txt type="caption" color={theme.inkSecondary}>Use your DCU email address, ending @mail.dcu.ie or @dcu.ie</Txt>
+                <Txt nativeID={emailHelpID} type="caption" color={theme.inkSecondary}>{addressHelp}</Txt>
               ) : null}
             </Row>
             <Row>
@@ -208,6 +217,7 @@ export function SignIn({ onSignedIn, notice }: { onSignedIn: (user: Authenticate
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Password"
+                descriptionID={mode === "createAccount" ? passwordHelpID : undefined}
                 autoComplete="password"
                 revealed={revealed}
                 onToggleReveal={() => setRevealed((shown) => !shown)}
@@ -224,13 +234,14 @@ export function SignIn({ onSignedIn, notice }: { onSignedIn: (user: Authenticate
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   placeholder="Confirm password"
+                  descriptionID={passwordHelpID}
                   revealed={revealed}
                   onToggleReveal={() => setRevealed((shown) => !shown)}
                   returnKeyType="go"
                   onSubmitEditing={() => canSubmit && submit()}
                 />
                 {/* The rules are stated before they type; the current problem takes their place. */}
-                <Txt type="caption" color={theme.inkSecondary}>
+                <Txt nativeID={passwordHelpID} type="caption" color={theme.inkSecondary}>
                   {problem ? PasswordValidation.message(problem) : PasswordValidation.requirements}
                 </Txt>
               </Row>

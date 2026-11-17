@@ -9,9 +9,10 @@ import { useTheme } from '../../ui/theme';
  * Shared by sign-in and the reset a recovery link opens, so the two look the same.
  */
 export function PasswordField({
-  placeholder, revealed, onToggleReveal, ...input
+  placeholder, revealed, onToggleReveal, descriptionID, ...input
 }: Pick<TextInputProps, 'value' | 'onChangeText' | 'autoComplete' | 'returnKeyType' | 'onSubmitEditing'> & {
   placeholder: string;
+  descriptionID?: string;
   revealed: boolean;
   onToggleReveal: () => void;
 }) {
@@ -30,6 +31,7 @@ export function PasswordField({
         spellCheck={false}
         style={[styles.input, { color: theme.ink }]}
         accessibilityLabel={placeholder}
+        aria-describedby={descriptionID}
       />
       <Pressable
         onPress={onToggleReveal}
