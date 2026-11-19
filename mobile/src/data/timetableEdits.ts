@@ -1,3 +1,4 @@
+import { CustomClass, CustomClasses } from '../core/customClasses';
 import { ModuleCode, TimetableEdit, TimetableEdits } from '../core/timetableEdits';
 import { PrefKey, Prefs } from './storage';
 
@@ -31,6 +32,19 @@ export const TimetableEditStore = {
   extraModules(prefs: Prefs): string[] {
     const saved = prefs.getJSON<unknown>(PrefKey.extraModules, []);
     return Array.isArray(saved) ? saved.filter((c): c is string => typeof c === 'string' && ModuleCode.isValid(c)) : [];
+  },
+
+  /** Classes the student set at a time of their own. */
+  customClasses(prefs: Prefs): CustomClass[] {
+    return CustomClasses.decode(prefs.getJSON<unknown>(PrefKey.customClasses, []));
+  },
+
+  addCustomClass(prefs: Prefs, added: CustomClass): void {
+    prefs.setJSON(PrefKey.customClasses, [...TimetableEditStore.customClasses(prefs), added]);
+  },
+
+  removeCustomClass(prefs: Prefs, id: string): void {
+    prefs.setJSON(PrefKey.customClasses, TimetableEditStore.customClasses(prefs).filter((c) => c.id !== id));
   },
 
   addExtraModule(prefs: Prefs, code: string): void {

@@ -9,6 +9,7 @@ import { ClashDetector, DefaultDay } from '../../core/schedule';
 import { addDays, startOfDay } from '../../core/time';
 import { ModuleTitle, ModuleTitles, TeachingWeek, TimetableCategory, TimetableEvent, WeekCalendar } from '../../core/timetableEvent';
 import { ModuleAbbreviation, ModuleAbbreviations } from '../../core/abbreviations';
+import { CustomClass, CustomClasses } from '../../core/customClasses';
 import { EditRepeat, TimetableEdit, TimetableEdits } from '../../core/timetableEdits';
 import { PushTargetsRules } from '../../core/webPush';
 import { errorMessage } from '../../data/rest';
@@ -77,6 +78,8 @@ export class WeekModel extends Observable {
   private edits: TimetableEdit[];
   /** Modules outside the course the student took a class of through Add class, whose classes are fetched as ghosts. */
   private extraModules: string[];
+  /** Classes the student set at a time of their own, drawn into every week they fall in. */
+  private customClasses: CustomClass[];
   private changes: TimetableChange[];
   private splits: ModuleSplit[];
   private titles: ModuleTitle[];
@@ -114,9 +117,11 @@ export class WeekModel extends Observable {
     this.initial = user ? surnameInitial(userEmail(user)?.familyName) : null;
     this.edits = TimetableEditStore.edits(services.prefs);
     this.extraModules = TimetableEditStore.extraModules(services.prefs);
+    this.customClasses = TimetableEditStore.customClasses(services.prefs);
     this.unsubscribe.push(
       services.prefs.subscribe(PrefKey.timetableEdits, () => this.reloadEdits()),
       services.prefs.subscribe(PrefKey.extraModules, () => void this.reloadExtraModules()),
+      services.prefs.subscribe(PrefKey.customClasses, () => this.reloadCustomClasses()),
       services.prefs.subscribe(PrefKey.classAlerts, () => this.scheduleAlerts()),
     );
   }
@@ -269,7 +274,20 @@ export class WeekModel extends Observable {
 
   /** Adds a class to the student's timetable, or drops one from it, once or every week. */
   edit(kind: TimetableEdit['kind'], repeat: EditRepeat, event: TimetableEvent): void {
+    // A class of their own, removed for good, is deleted rather than hidden: nothing would
+    // ever bring it back. One day off an every-week one is an ordinary once-off.
+    const custom = CustomClasses.idOf(event);
+    const saved = custom ? this.customClasses.find((c) => c.id === custom) : null;
+    if (kind === 'remove' && saved && (repeat === 'weekly' || saved.repeat === 'once')) {
+      TimetableEditStore.removeCustomClass(this.services.prefs, saved.id);
+      return;
+    }
     TimetableEditStore.add(this.services.prefs, TimetableEdits.make(kind, repeat, event));
+  }
+
+  /** Puts a class of the student's own on their timetable, at the time they chose. */
+  addCustomClass(added: CustomClass): void {
+    TimetableEditStore.addCustomClass(this.services.prefs, added);
   }
 
   /**
@@ -465,6 +483,13 @@ export class WeekModel extends Observable {
     const others = await this.othersFor(weeks);
     if (!others) return;
     for (const week of weeks) this.rawOthersByWeekNumber.set(week.number, inWeek(week, others));
+    this.applyFilter();
+    this.publishWidgetSnapshot();
+  }
+
+  /** Re-read the classes set at a time of the student's own. */
+  reloadCustomClasses(): void {
+    this.customClasses = TimetableEditStore.customClasses(this.services.prefs);
     this.applyFilter();
     this.publishWidgetSnapshot();
   }
@@ -680,7 +705,9 @@ export class WeekModel extends Observable {
       const seen = new Set(all.map((e) => e.id));
       const extra = (this.rawOthersByWeekNumber.get(number) ?? []).filter((e) => !seen.has(e.id));
       const others = [...all.filter((e) => !kept.has(e.id)), ...named(extra)];
-      const edited = TimetableEdits.apply(mine, others, this.edits);
+      // Their own classes join their week before the edits, so one day can be taken off one.
+      const own = weekStart ? CustomClasses.eventsIn(this.customClasses, weekStart) : [];
+      const edited = TimetableEdits.apply(own.length > 0 ? [...mine, ...own].sort((a, b) => a.start.getTime() - b.start.getTime()) : mine, others, this.edits);
       filtered.set(number, edited.events);
       ghosts.set(number, edited.ghosts);
     }

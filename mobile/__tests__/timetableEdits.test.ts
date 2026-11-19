@@ -138,6 +138,29 @@ describe('Edit timetable in the week model', () => {
     expect(ids(model.ghostsByWeekNumber.get(2) ?? [])).toEqual(['lab-2']);
     model.dispose();
   });
+
+  test('a class at a time of their own is in every week it falls in, a day can come off, and removing it for good deletes it', async () => {
+    jest.useFakeTimers({ now: at(2026, 9, 28, 8), doNotFake: ['setTimeout', 'setImmediate', 'nextTick', 'queueMicrotask'] });
+    const services = await createServices({ kv: new MemoryKV(), secrets: { get: async () => null, set: async () => {}, remove: async () => {} }, env: {} });
+    const model = new WeekModel(services, programme, source, null);
+    await model.start();
+    await settle();
+    model.addCustomClass({
+      id: 'own', code: 'MS134', title: 'Statistics', kind: 'L', date: '2026-09-29', start: '15:00', end: '16:00', repeat: 'weekly', room: null,
+    });
+    const own = (week: number) => (model.eventsByWeekNumber.get(week) ?? []).filter((e) => e.activity.moduleCode === 'MS134');
+    expect(own(1)).toHaveLength(1);
+    expect(own(2)).toHaveLength(1);
+
+    model.edit('remove', 'once', own(2)[0]);
+    expect(own(1)).toHaveLength(1);
+    expect(own(2)).toHaveLength(0);
+
+    model.edit('remove', 'weekly', own(1)[0]);
+    expect(own(1)).toHaveLength(0);
+    expect(TimetableEditStore.customClasses(services.prefs)).toEqual([]);
+    model.dispose();
+  });
 });
 
 describe("Other groups' rotation sessions", () => {

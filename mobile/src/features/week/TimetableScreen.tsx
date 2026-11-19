@@ -4,6 +4,7 @@ import { AppState, StyleSheet, View } from 'react-native';
 import { addDays, daysBetween, formatDayMonth, isSameDay, isToday, isTomorrow, startOfDay, weekdayName, WeekHeading } from '../../core/time';
 import { WeekdayIndex } from '../../core/misc';
 import { TimetableEvent } from '../../core/timetableEvent';
+import { uuid } from '../../core/uuid';
 import { listenForMacAlertTaps } from '../../data/macShell';
 import { useWeekFirst } from '../../ui/floatingBar';
 import { listenForAlertTaps } from '../../data/notifications';
@@ -228,6 +229,7 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
           edit: ({ event, kind }, repeat) => model.edit(kind, repeat, event),
           replace: (cancelled, replacement, repeat) => model.replace(cancelled, replacement, repeat),
           addClass: (session, repeat) => model.addClass(session, repeat),
+          addOwnClass: (draft, repeat) => model.addCustomClass({ ...draft, id: uuid(), repeat }),
         }}
       />
       <AddClassCard
@@ -235,6 +237,8 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
         weekLabel={shownWeek ? `week ${shownWeek.label}` : ''}
         onFind={(code) => model.sessionsOf(code, model.weekIndex)}
         onPick={(session) => setEditStep({ step: 'addRepeat', session })}
+        weekStart={shownWeek?.firstDay ?? null}
+        onSetOwn={(draft) => setEditStep({ step: 'ownRepeat', draft })}
         onClose={() => setAddingClass(false)}
       />
     </View>

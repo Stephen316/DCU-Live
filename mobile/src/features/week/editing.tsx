@@ -1,11 +1,13 @@
 import { useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ActivityKind, activitySummary, kindLabel } from '../../core/activityCode';
+import { CUSTOM_KINDS, CustomClass, CustomKind, timeAfter } from '../../core/customClasses';
 import { EditRepeat, ModuleCode, TimetableEdit } from '../../core/timetableEdits';
-import { formatTime, formatWeekdayDayMonth, weekdayName } from '../../core/time';
+import { addDays, DublinTime, formatTime, formatWeekdayDayMonth, isSameDay, startOfDay, weekdayName } from '../../core/time';
 import { shortTitleOf, TimetableEvent } from '../../core/timetableEvent';
 import { errorMessage } from '../../data/rest';
-import { ActionSheet, BottomCard, PrimaryButton, SecondaryButton, Segmented, SheetAction, Spinner, Txt } from '../../ui/components';
+import { ActionSheet, BottomCard, InlineAction, PrimaryButton, SecondaryButton, Segmented, SheetAction, Spinner, Txt } from '../../ui/components';
+import { TimeWheel } from '../../ui/TimeWheel';
 import { Radius, Space, useTheme } from '../../ui/theme';
 
 /** What a tap does in Edit timetable: adds a ghost, or removes one of the student's classes. */
@@ -26,14 +28,19 @@ export type EditStep =
   | { step: 'choose'; edit: PendingEdit; cancelled: boolean; replacements: TimetableEvent[] }
   | { step: 'replaceWith'; event: TimetableEvent; replacements: TimetableEvent[] }
   | { step: 'replaceRepeat'; event: TimetableEvent; replacement: TimetableEvent }
-  | { step: 'addRepeat'; session: TimetableEvent };
+  | { step: 'addRepeat'; session: TimetableEvent }
+  | { step: 'ownRepeat'; draft: OwnClassDraft };
 
 /** What the sheets hand back once the student has decided. */
 export interface EditActions {
   edit: (edit: PendingEdit, repeat: EditRepeat) => void;
   replace: (cancelled: TimetableEvent, replacement: TimetableEvent, repeat: EditRepeat) => void;
   addClass: (session: TimetableEvent, repeat: EditRepeat) => void;
+  addOwnClass: (draft: OwnClassDraft, repeat: EditRepeat) => void;
 }
+
+/** A class set at a time of the student's own, before they say how often. */
+export type OwnClassDraft = Omit<CustomClass, 'id' | 'repeat'>;
 
 /** The longest list of swaps offered: past that, a week has more choice than a menu can show. */
 const MAX_REPLACEMENTS = 8;
@@ -103,6 +110,15 @@ export function EditSheets({ step, onStep, actions }: {
       { label: `Add only on ${formatWeekdayDayMonth(session.start)}`, onPress: () => actions.addClass(session, 'once') },
       { label: 'Add every week', onPress: () => actions.addClass(session, 'weekly') },
     ];
+  } else if (shown?.step === 'ownRepeat') {
+    const { draft } = shown;
+    const day = DublinTime.date(draft.date, draft.start);
+    title = `Add ${draft.title ?? draft.code}?`;
+    message = `${day ? weekdayName(day) : ''} ${draft.start}–${draft.end} · ${kindLabel(draft.kind)}`.trim();
+    list = [
+      { label: day ? `Add only on ${formatWeekdayDayMonth(day)}` : 'Add only this week', onPress: () => actions.addOwnClass(draft, 'once') },
+      { label: 'Add every week', onPress: () => actions.addOwnClass(draft, 'weekly') },
+    ];
   }
 
   return <ActionSheet visible={step !== null} title={title} message={message} actions={list} onClose={() => onStep(null)} />;
@@ -127,16 +143,21 @@ function kindsIn(sessions: TimetableEvent[]): ActivityKind[] {
  * tutorials, one kind at a time — and a tap on one to take it on. Any module, the student's
  * own or not: a repeat, an elective, a friend's.
  */
-export function AddClassCard({ visible, weekLabel, onFind, onPick, onClose }: {
+export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, onSetOwn, onClose }: {
   visible: boolean;
   /** "week 6", for saying which week's classes these are. */
   weekLabel: string;
   onFind: (code: string) => Promise<TimetableEvent[]>;
   onPick: (session: TimetableEvent) => void;
+  /** Monday of the week on screen, for the days Set my own time offers. */
+  weekStart: Date | null;
+  onSetOwn: (draft: OwnClassDraft) => void;
   onClose: () => void;
 }) {
   const theme = useTheme();
+  const [mode, setMode] = useState<'find' | 'own'>('find');
   const [text, setText] = useState('');
+  const [own, setOwn] = useState<OwnForm>(() => blankOwnForm(weekStart));
   const [search, setSearch] = useState<Search>({ state: 'idle' });
   const [kind, setKind] = useState<ActivityKind>('L');
   const request = useRef(0);
@@ -171,18 +192,37 @@ export function AddClassCard({ visible, weekLabel, onFind, onPick, onClose }: {
     request.current++;
     setSearch({ state: 'idle' });
     setText('');
+    setMode('find');
+    setOwn(blankOwnForm(weekStart));
     onClose();
   };
 
-  const pick = (session: TimetableEvent) => {
+  /** Closes the card, then runs `next` once it has gone (on iOS, which needs it gone first). */
+  const closeThen = (next: () => void) => {
     if (Platform.OS === 'ios') {
-      pending.current = () => onPick(session);
+      pending.current = next;
       close();
       setTimeout(runPending, 700);
     } else {
       close();
-      onPick(session);
+      next();
     }
+  };
+
+  const pick = (session: TimetableEvent) => closeThen(() => onPick(session));
+
+  const days = weekStart ? Array.from({ length: 5 }, (_, i) => addDays(startOfDay(weekStart), i)) : [];
+  const start = `${String(own.hours).padStart(2, '0')}:${String(own.minutes).padStart(2, '0')}`;
+  const end = timeAfter(start, own.length);
+  const ownDay = days[own.day] ?? null;
+  const ownReady = valid && end !== null && ownDay !== null;
+  const setOwnTime = () => {
+    if (!ownReady || !ownDay || !end) return;
+    const draft: OwnClassDraft = {
+      code, title: own.title.trim() || null, kind: own.kind, date: DublinTime.dateString(ownDay), start, end,
+      room: own.room.trim() || null,
+    };
+    closeThen(() => onSetOwn(draft));
   };
 
   const kinds = search.state === 'found' ? kindsIn(search.sessions) : [];
@@ -193,8 +233,14 @@ export function AddClassCard({ visible, weekLabel, onFind, onPick, onClose }: {
       <View style={styles.header}>
         <Txt type="headline" style={styles.centre}>Add a class</Txt>
         <Txt type="footnote" color={theme.inkSecondary} style={styles.centre}>
-          Any module&apos;s lectures, labs and tutorials, yours or not. Type its code to see them in {week}.
+          {mode === 'find'
+            ? `Any module's lectures, labs and tutorials, yours or not. Type its code to see them in ${week}.`
+            : `A class at a time of your own, for one DCU's timetable doesn't show then. It's on ${week}.`}
         </Txt>
+        <InlineAction
+          title={mode === 'find' ? 'Set my own time instead' : "Find it in DCU's timetable instead"}
+          onPress={() => setMode(mode === 'find' ? 'own' : 'find')}
+        />
       </View>
       <TextInput
         value={text}
@@ -207,18 +253,65 @@ export function AddClassCard({ visible, weekLabel, onFind, onPick, onClose }: {
         autoCapitalize="characters"
         autoCorrect={false}
         returnKeyType="search"
-        onSubmitEditing={find}
+        onSubmitEditing={mode === 'find' ? find : undefined}
         accessibilityLabel="Module code"
         style={[styles.input, { color: theme.ink, backgroundColor: theme.raised }]}
       />
-      {search.state === 'searching' ? <Spinner label="Looking it up…" /> : null}
-      {search.state === 'failed' ? <Txt type="footnote" color={theme.destructive}>{search.message}</Txt> : null}
-      {search.state === 'found' && search.sessions.length === 0 ? (
+      {mode === 'own' ? (
+        <>
+          <TextInput
+            value={own.title}
+            onChangeText={(title) => setOwn({ ...own, title })}
+            placeholder="Name (optional), e.g. Statistics"
+            placeholderTextColor={theme.inkSecondary}
+            accessibilityLabel="Name"
+            style={[styles.input, { color: theme.ink, backgroundColor: theme.raised }]}
+          />
+          <Segmented
+            label="Kind of class"
+            options={CUSTOM_KINDS.map((k) => ({ value: k, label: kindLabel(k) }))}
+            value={own.kind}
+            onChange={(kind) => setOwn({ ...own, kind })}
+          />
+          {days.length > 0 ? (
+            <Segmented
+              label="Day"
+              options={days.map((d, i) => ({ value: String(i), label: weekdayName(d).slice(0, 3) }))}
+              value={String(own.day)}
+              onChange={(i) => setOwn({ ...own, day: Number(i) })}
+            />
+          ) : null}
+          <View style={styles.wheel}>
+            <Txt type="footnote" color={theme.inkSecondary}>Starts at</Txt>
+            <TimeWheel hours={own.hours} minutes={own.minutes} onChange={(hours, minutes) => setOwn({ ...own, hours, minutes })} />
+          </View>
+          <Segmented
+            label="Length"
+            options={LENGTHS.map((m) => ({ value: String(m), label: m === 60 ? '1 hour' : `${m / 60} hours` }))}
+            value={String(own.length)}
+            onChange={(m) => setOwn({ ...own, length: Number(m) })}
+          />
+          {end === null ? <Txt type="footnote" color={theme.destructive}>That runs past midnight: start it earlier or make it shorter.</Txt> : null}
+          <TextInput
+            value={own.room}
+            onChangeText={(room) => setOwn({ ...own, room })}
+            placeholder="Room (optional), e.g. GLA.QG15"
+            placeholderTextColor={theme.inkSecondary}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            accessibilityLabel="Room"
+            style={[styles.input, { color: theme.ink, backgroundColor: theme.raised }]}
+          />
+        </>
+      ) : null}
+      {mode === 'find' && search.state === 'searching' ? <Spinner label="Looking it up…" /> : null}
+      {mode === 'find' && search.state === 'failed' ? <Txt type="footnote" color={theme.destructive}>{search.message}</Txt> : null}
+      {mode === 'find' && search.state === 'found' && search.sessions.length === 0 ? (
         <Txt type="footnote" color={theme.inkSecondary} style={styles.centre}>
           Nothing on for {search.code} in {week}. Check the code, or try another week.
         </Txt>
       ) : null}
-      {kinds.length > 1 ? (
+      {mode === 'find' && kinds.length > 1 ? (
         <Segmented
           label="Kind of class"
           options={kinds.map((k) => ({ value: k, label: kindLabel(k) }))}
@@ -226,7 +319,7 @@ export function AddClassCard({ visible, weekLabel, onFind, onPick, onClose }: {
           onChange={setKind}
         />
       ) : null}
-      {shown.length > 0 ? (
+      {mode === 'find' && shown.length > 0 ? (
         <View style={[styles.list, { backgroundColor: theme.raised }]}>
           {shown.map((session, i) => (
             <View key={session.id}>
@@ -247,13 +340,38 @@ export function AddClassCard({ visible, weekLabel, onFind, onPick, onClose }: {
         </View>
       ) : null}
       <View style={styles.buttons}>
-        {search.state !== 'found' || search.code !== code ? (
+        {mode === 'own' ? (
+          <PrimaryButton title="Next" onPress={setOwnTime} disabled={!ownReady} />
+        ) : search.state !== 'found' || search.code !== code ? (
           <PrimaryButton title="Find classes" onPress={find} disabled={!valid} busy={search.state === 'searching'} />
         ) : null}
         <SecondaryButton title="Cancel" onPress={close} />
       </View>
     </BottomCard>
   );
+}
+
+/** What Set my own time is holding while it's filled in. */
+interface OwnForm {
+  title: string;
+  kind: CustomKind;
+  /** Mon–Fri index into the week on screen. */
+  day: number;
+  hours: number;
+  minutes: number;
+  /** Minutes long. */
+  length: number;
+  room: string;
+}
+
+/** The lengths offered: most classes are one of these. */
+const LENGTHS = [60, 120, 180];
+
+/** A lecture at nine, on today if today is in the week on screen, else on its Monday. */
+function blankOwnForm(weekStart: Date | null): OwnForm {
+  const today = new Date();
+  const index = weekStart ? Array.from({ length: 5 }, (_, i) => addDays(startOfDay(weekStart), i)).findIndex((d) => isSameDay(d, today)) : -1;
+  return { title: '', kind: 'L', day: Math.max(index, 0), hours: 9, minutes: 0, length: 60, room: '' };
 }
 
 const styles = StyleSheet.create({
@@ -264,4 +382,5 @@ const styles = StyleSheet.create({
   row: { paddingHorizontal: Space.m, paddingVertical: Space.s, gap: 2 },
   hairline: { height: StyleSheet.hairlineWidth, marginLeft: Space.m },
   buttons: { gap: Space.s },
+  wheel: { alignItems: 'center', gap: Space.xs },
 });
