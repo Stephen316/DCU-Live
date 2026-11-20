@@ -50,7 +50,7 @@ final class AlertBridge: NSObject, WKScriptMessageHandlerWithReply {
             case "calendar.open":
                 // Export to Calendar: a WKWebView drops a page's download, so the file comes here.
                 guard let ics = body["ics"] as? String else { return replyHandler(nil, "No calendar") }
-                let name = (body["name"] as? String).map { ($0 as NSString).lastPathComponent } ?? "DCU Timetable.ics"
+                let name = (body["name"] as? String).map { ($0 as NSString).lastPathComponent } ?? "DCU Live.ics"
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
                 do {
                     try ics.write(to: url, atomically: true, encoding: .utf8)

@@ -38,7 +38,7 @@ final class WebWindowController: NSWindowController, NSWindowDelegate {
             contentRect: NSRect(x: 0, y: 0, width: 1100, height: 760),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
-        window.title = "DCU Timetable"
+        window.title = "DCU Live"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.minSize = NSSize(width: 380, height: 560)
@@ -223,7 +223,7 @@ private enum OfflinePage {
         </style>
         <div>
           <h1>You're offline</h1>
-          <p>DCU Timetable needs the internet the first time it opens. It will load as soon as you're back online.</p>
+          <p>DCU Live needs the internet the first time it opens. It will load as soon as you're back online.</p>
           <button onclick="location.href = '\(address.absoluteString)'">Try Again</button>
         </div>
         """

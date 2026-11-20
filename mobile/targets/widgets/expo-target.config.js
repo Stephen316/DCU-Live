@@ -8,7 +8,7 @@
 module.exports = (config) => ({
   type: 'widget',
   name: 'DCUTimetableWidgets',
-  displayName: 'DCU Timetable',
+  displayName: 'DCU Live',
   // Appended to the app's: com.stephenh.dcutimetable.widgets
   bundleIdentifier: '.widgets',
   deploymentTarget: '17.0',

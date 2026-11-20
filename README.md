@@ -29,10 +29,10 @@ or visit our **[landing page](https://dculive.ie) for more information.**
 
 ### Mac install
 
-**[Download DCU Timetable for Mac](https://github.com/Stephen316/DCU-Timetables/releases/latest/download/DCU-Timetable-mac.zip)**
+**[Download DCU Live for Mac](https://github.com/Stephen316/DCU-Timetables/releases/latest/download/DCU-Timetable-mac.zip)**
 (macOS 14 or later), then:
 
-1. Open the download and drag **DCU Timetable** into Applications.
+1. Open the download and drag **DCU Live** into Applications.
 2. Open it. The first time, macOS says it can't check the app: click **Done**.
 3. Go to **System Settings → Privacy & Security** and click **Open Anyway**. You only do this
    once.

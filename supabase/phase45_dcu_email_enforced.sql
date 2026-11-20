@@ -1,4 +1,4 @@
--- DCU Timetable — phase 45: DCU-only addresses, enforced on every path into auth.users.
+-- DCU Live — phase 45: DCU-only addresses, enforced on every path into auth.users.
 --
 -- RUN ORDER: phase0_identity.sql (defines the sign-up hook and auth_domain_exceptions) → THIS FILE.
 -- Safe to run more than once.

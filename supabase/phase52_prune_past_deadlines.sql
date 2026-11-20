@@ -1,4 +1,4 @@
--- DCU Timetable — phase 52: deadlines are deleted fourteen days after they fall due.
+-- DCU Live — phase 52: deadlines are deleted fourteen days after they fall due.
 --
 -- RUN ORDER: after phase 37 (pg_cron is enabled there). Safe to run more than once.
 --

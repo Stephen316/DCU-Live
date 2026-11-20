@@ -1,4 +1,4 @@
--- DCU Timetable — phase 48: a timetable change can be for one project team.
+-- DCU Live — phase 48: a timetable change can be for one project team.
 --
 -- RUN ORDER: phase17 → phase19 → phase30_class_edits.sql → phase46_roster_groupings.sql → THIS FILE.
 -- Safe to run more than once. Run it BEFORE the console build that saves a team schedule.

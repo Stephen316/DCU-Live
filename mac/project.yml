@@ -20,7 +20,7 @@ targets:
       - path: DCUTimetable
     settings:
       base:
-        PRODUCT_NAME: DCU Timetable
+        PRODUCT_NAME: DCU Live
         PRODUCT_BUNDLE_IDENTIFIER: com.stephenh.dcutimetable.mac
         INFOPLIST_FILE: DCUTimetable/Info.plist
         CODE_SIGN_ENTITLEMENTS: DCUTimetable/DCUTimetable.entitlements

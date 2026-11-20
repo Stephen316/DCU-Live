@@ -1,4 +1,4 @@
-# DCU Timetable for Mac
+# DCU Live for Mac
 
 A native Mac window around the student app's web build: Dock icon, menu bar, a resizable
 window that remembers its place, and class alerts as Mac notifications. There is no second
@@ -15,7 +15,7 @@ beside it. The web build knows it's here through the `dcuMac` message handler.
 brew install xcodegen                      # once
 cd mac && xcodegen generate                # after adding or removing a file
 xcodebuild -project DCUTimetableMac.xcodeproj -scheme DCUTimetableMac -configuration Release -destination 'generic/platform=macOS' -derivedDataPath build/dd build
-open "build/dd/Build/Products/Release/DCU Timetable.app"
+open "build/dd/Build/Products/Release/DCU Live.app"
 ```
 
 Or open `DCUTimetableMac.xcodeproj` in Xcode and press Run. To keep it, drag the `.app` into
@@ -40,7 +40,7 @@ Developer Program, a Developer ID certificate and a notarisation step in the wor
 ## Pointing it at a dev server
 
 ```bash
-open "build/dd/Build/Products/Debug/DCU Timetable.app" --args -AppURL http://localhost:8082/
+open "build/dd/Build/Products/Debug/DCU Live.app" --args -AppURL http://localhost:8082/
 ```
 
 `-AppURL` works with any build. To make it stick, so the Dock icon and Xcode's Run open the

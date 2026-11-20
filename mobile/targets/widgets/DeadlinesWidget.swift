@@ -109,7 +109,7 @@ struct DeadlinesSmallView: View {
                 WidgetEmptyState(symbol: entry.hasData ? "checkmark.circle" : "arrow.down.app",
                                  message: entry.hasData
                                      ? "Nothing due"
-                                     : "Open DCU Timetable to fill this in")
+                                     : "Open DCU Live to fill this in")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -131,7 +131,7 @@ struct DeadlinesListView: View {
                 WidgetEmptyState(symbol: entry.hasData ? "checkmark.circle" : "arrow.down.app",
                                  message: entry.hasData
                                      ? "Nothing due"
-                                     : "Open DCU Timetable to fill this in")
+                                     : "Open DCU Live to fill this in")
             } else {
                 WidgetRows(items: shown) { item in
                     DeadlineRow(item: item, now: entry.date)

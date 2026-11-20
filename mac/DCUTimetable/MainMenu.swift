@@ -5,7 +5,7 @@ import AppKit
 @MainActor
 enum MainMenu {
     static func make() -> NSMenu {
-        let name = "DCU Timetable"
+        let name = "DCU Live"
         let bar = NSMenu()
 
         bar.addSubmenu(name, [
@@ -46,12 +46,12 @@ enum MainMenu {
             item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
             item("Zoom", #selector(NSWindow.performZoom(_:))),
             .separator(),
-            item("DCU Timetable", #selector(AppDelegate.showMainWindow(_:)), "1"),
+            item("DCU Live", #selector(AppDelegate.showMainWindow(_:)), "1"),
         ])
         NSApp.windowsMenu = window
 
         let help = bar.addSubmenu("Help", [
-            item("DCU Timetable Help", #selector(AppDelegate.openSupport(_:))),
+            item("DCU Live Help", #selector(AppDelegate.openSupport(_:))),
         ])
         NSApp.helpMenu = help
 

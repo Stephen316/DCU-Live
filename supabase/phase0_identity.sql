@@ -1,4 +1,4 @@
--- DCU Timetable — phase 0: identity, roles, bans, audit.
+-- DCU Live — phase 0: identity, roles, bans, audit.
 --
 -- RUN ORDER:  schema.sql  →  THIS FILE.
 -- Safe to run more than once. Every statement either creates something missing or
