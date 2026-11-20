@@ -2,11 +2,11 @@ import { useRef, useState } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { ActivityKind, activitySummary, kindLabel } from '../../core/activityCode';
 import { CUSTOM_KINDS, CustomClass, CustomKind, timeAfter } from '../../core/customClasses';
-import { EditRepeat, ModuleCode, TimetableEdit } from '../../core/timetableEdits';
+import { EditRepeat, TimetableEdit } from '../../core/timetableEdits';
 import { addDays, DublinTime, formatTime, formatWeekdayDayMonth, isSameDay, startOfDay, weekdayName } from '../../core/time';
 import { shortTitleOf, TimetableEvent } from '../../core/timetableEvent';
 import { errorMessage } from '../../data/rest';
-import { ActionSheet, BottomCard, InlineAction, PrimaryButton, SecondaryButton, Segmented, SheetAction, Spinner, Txt } from '../../ui/components';
+import { ActionSheet, BottomCard, IconButton, InlineAction, PrimaryButton, SecondaryButton, Segmented, SheetAction, Spinner, Txt } from '../../ui/components';
 import { TimeWheel } from '../../ui/TimeWheel';
 import { Radius, Space, useTheme } from '../../ui/theme';
 
@@ -138,15 +138,24 @@ function kindsIn(sessions: TimetableEvent[]): ActivityKind[] {
   return KIND_ORDER.filter((kind) => sessions.some((s) => s.activity.kind === kind));
 }
 
+/** One of the student's modules, as Add class offers it. */
+export interface ModuleChoice {
+  code: string;
+  /** Its short name, or the code again when no class names it. */
+  name: string;
+}
+
 /**
- * Add class: a module code in, that module's classes this week out — its lectures, labs and
- * tutorials, one kind at a time — and a tap on one to take it on. Any module, the student's
- * own or not: a repeat, an elective, a friend's.
+ * Add class: one of the student's modules picked, that module's classes this week out — its
+ * lectures, labs and tutorials, one kind at a time — and a tap on one to take it on: another
+ * group's lab, a lecture stream at a better time.
  */
-export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, onSetOwn, onClose }: {
+export function AddClassCard({ visible, weekLabel, weekStart, modules, onFind, onPick, onSetOwn, onClose }: {
   visible: boolean;
   /** "week 6", for saying which week's classes these are. */
   weekLabel: string;
+  /** The student's own modules: the only ones offered. */
+  modules: ModuleChoice[];
   onFind: (code: string) => Promise<TimetableEvent[]>;
   onPick: (session: TimetableEvent) => void;
   /** Monday of the week on screen, for the days Set my own time offers. */
@@ -156,7 +165,7 @@ export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, on
 }) {
   const theme = useTheme();
   const [mode, setMode] = useState<'find' | 'own'>('find');
-  const [text, setText] = useState('');
+  const [code, setCode] = useState<string | null>(null);
   const [own, setOwn] = useState<OwnForm>(() => blankOwnForm(weekStart));
   const [search, setSearch] = useState<Search>({ state: 'idle' });
   const [kind, setKind] = useState<ActivityKind>('L');
@@ -170,12 +179,9 @@ export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, on
     next?.();
   };
 
-  const code = ModuleCode.normalised(text);
-  const valid = ModuleCode.isValid(code);
   const week = weekLabel || 'this week';
 
-  const find = () => {
-    if (!valid) return;
+  const find = (code: string) => {
     const id = ++request.current;
     setSearch({ state: 'searching' });
     onFind(code)
@@ -191,7 +197,7 @@ export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, on
   const close = () => {
     request.current++;
     setSearch({ state: 'idle' });
-    setText('');
+    setCode(null);
     setMode('find');
     setOwn(blankOwnForm(weekStart));
     onClose();
@@ -215,14 +221,20 @@ export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, on
   const start = `${String(own.hours).padStart(2, '0')}:${String(own.minutes).padStart(2, '0')}`;
   const end = timeAfter(start, own.length);
   const ownDay = days[own.day] ?? null;
-  const ownReady = valid && end !== null && ownDay !== null;
+  const ownReady = code !== null && end !== null && ownDay !== null;
   const setOwnTime = () => {
-    if (!ownReady || !ownDay || !end) return;
+    if (!ownReady || !code || !ownDay || !end) return;
     const draft: OwnClassDraft = {
       code, title: own.title.trim() || null, kind: own.kind, date: DublinTime.dateString(ownDay), start, end,
       room: own.room.trim() || null,
     };
     closeThen(() => onSetOwn(draft));
+  };
+
+  /** In Find, a pick looks its classes up at once; in Set my own time, it only names the class. */
+  const choose = (choice: string) => {
+    setCode(choice);
+    if (mode === 'find') find(choice);
   };
 
   const kinds = search.state === 'found' ? kindsIn(search.sessions) : [];
@@ -231,32 +243,57 @@ export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, on
   return (
     <BottomCard visible={visible} onClose={close} onDismissed={runPending}>
       <View style={styles.header}>
+        <View style={styles.close}>
+          <IconButton icon="close" label="Close" color={theme.inkSecondary} onPress={close} />
+        </View>
         <Txt type="headline" style={styles.centre}>Add a class</Txt>
         <Txt type="footnote" color={theme.inkSecondary} style={styles.centre}>
           {mode === 'find'
-            ? `Any module's lectures, labs and tutorials, yours or not. Type its code to see them in ${week}.`
+            ? `Pick one of your modules to see its lectures, labs and tutorials in ${week}.`
             : `A class at a time of your own, for one DCU's timetable doesn't show then. It's on ${week}.`}
         </Txt>
         <InlineAction
           title={mode === 'find' ? 'Set my own time instead' : "Find it in DCU's timetable instead"}
-          onPress={() => setMode(mode === 'find' ? 'own' : 'find')}
+          onPress={() => {
+            // Switching to Find with a module already picked shows its classes straight away.
+            const next = mode === 'find' ? 'own' : 'find';
+            setMode(next);
+            if (next === 'find' && code && search.state !== 'found') find(code);
+          }}
         />
       </View>
-      <TextInput
-        value={text}
-        onChangeText={(value) => {
-          setText(value);
-          if (search.state !== 'searching') setSearch({ state: 'idle' });
-        }}
-        placeholder="Module code, e.g. MS121"
-        placeholderTextColor={theme.inkSecondary}
-        autoCapitalize="characters"
-        autoCorrect={false}
-        returnKeyType="search"
-        onSubmitEditing={mode === 'find' ? find : undefined}
-        accessibilityLabel="Module code"
-        style={[styles.input, { color: theme.ink, backgroundColor: theme.raised }]}
-      />
+      {modules.length > 0 ? (
+        <View style={styles.modules} accessibilityRole="radiogroup" accessibilityLabel="Module">
+          {modules.map((m) => {
+            const selected = m.code === code;
+            return (
+              <Pressable
+                key={m.code}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                accessibilityLabel={m.name === m.code ? m.code : `${m.name}, ${m.code}`}
+                onPress={() => choose(m.code)}
+                style={({ pressed }) => [
+                  styles.module,
+                  { backgroundColor: selected ? theme.accent : theme.raised },
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Txt type="subheadline" numberOfLines={1} color={selected ? theme.onAccent : theme.ink} style={styles.moduleName}>
+                  {m.name}
+                </Txt>
+                {m.name !== m.code ? (
+                  <Txt type="footnote" numberOfLines={1} color={selected ? theme.onAccent : theme.inkSecondary}>{m.code}</Txt>
+                ) : null}
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : (
+        <Txt type="footnote" color={theme.inkSecondary} style={styles.centre}>
+          Your modules show here once your timetable has loaded.
+        </Txt>
+      )}
       {mode === 'own' ? (
         <>
           <TextInput
@@ -308,7 +345,7 @@ export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, on
       {mode === 'find' && search.state === 'failed' ? <Txt type="footnote" color={theme.destructive}>{search.message}</Txt> : null}
       {mode === 'find' && search.state === 'found' && search.sessions.length === 0 ? (
         <Txt type="footnote" color={theme.inkSecondary} style={styles.centre}>
-          Nothing on for {search.code} in {week}. Check the code, or try another week.
+          Nothing on for {search.code} in {week}. Try another week.
         </Txt>
       ) : null}
       {mode === 'find' && kinds.length > 1 ? (
@@ -342,8 +379,8 @@ export function AddClassCard({ visible, weekLabel, weekStart, onFind, onPick, on
       <View style={styles.buttons}>
         {mode === 'own' ? (
           <PrimaryButton title="Next" onPress={setOwnTime} disabled={!ownReady} />
-        ) : search.state !== 'found' || search.code !== code ? (
-          <PrimaryButton title="Find classes" onPress={find} disabled={!valid} busy={search.state === 'searching'} />
+        ) : search.state === 'failed' && code ? (
+          <PrimaryButton title="Try again" onPress={() => find(code)} />
         ) : null}
         <SecondaryButton title="Cancel" onPress={close} />
       </View>
@@ -376,8 +413,14 @@ function blankOwnForm(weekStart: Date | null): OwnForm {
 
 const styles = StyleSheet.create({
   header: { gap: Space.xs, alignItems: 'center' },
+  // Over the card's top-left corner, clear of the centred title.
+  close: { position: 'absolute', top: -Space.s, left: -Space.s, zIndex: 1 },
   centre: { textAlign: 'center' },
   input: { fontSize: 17, minHeight: 44, paddingHorizontal: Space.m, borderRadius: Radius.control },
+  modules: { flexDirection: 'row', flexWrap: 'wrap', gap: Space.s },
+  // Two to a row on a phone, more on a wider card.
+  module: { flexGrow: 1, flexBasis: '45%', minHeight: 44, justifyContent: 'center', paddingHorizontal: Space.m, paddingVertical: Space.s, borderRadius: Radius.control },
+  moduleName: { fontWeight: '600' },
   list: { borderRadius: Radius.control, overflow: 'hidden' },
   row: { paddingHorizontal: Space.m, paddingVertical: Space.s, gap: 2 },
   hairline: { height: StyleSheet.hairlineWidth, marginLeft: Space.m },

@@ -235,6 +235,7 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
       <AddClassCard
         visible={addingClass}
         weekLabel={shownWeek ? `week ${shownWeek.label}` : ''}
+        modules={addingClass ? model.moduleChoices() : []}
         onFind={(code) => model.sessionsOf(code, model.weekIndex)}
         onPick={(session) => setEditStep({ step: 'addRepeat', session })}
         weekStart={shownWeek?.firstDay ?? null}

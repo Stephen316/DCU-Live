@@ -10,7 +10,7 @@ import { addDays, startOfDay } from '../../core/time';
 import { ModuleTitle, ModuleTitles, TeachingWeek, TimetableCategory, TimetableEvent, WeekCalendar } from '../../core/timetableEvent';
 import { ModuleAbbreviation, ModuleAbbreviations } from '../../core/abbreviations';
 import { CustomClass, CustomClasses } from '../../core/customClasses';
-import { EditRepeat, TimetableEdit, TimetableEdits } from '../../core/timetableEdits';
+import { EditRepeat, ModuleCode, TimetableEdit, TimetableEdits } from '../../core/timetableEdits';
 import { PushTargetsRules } from '../../core/webPush';
 import { errorMessage } from '../../data/rest';
 import { userEmail } from '../../data/session';
@@ -218,6 +218,17 @@ export class WeekModel extends Observable {
   /** What to call a deadline's module: its name, or its code when no class names it. */
   moduleName(key: string): string {
     return this.moduleNames.get(key) ?? key;
+  }
+
+  /**
+   * The student's own modules for Add class, by name: only real module codes, so a class
+   * whose code DCU's timetable couldn't read isn't offered as one.
+   */
+  moduleChoices(): { code: string; name: string }[] {
+    return this.moduleKeys()
+      .filter((key) => ModuleCode.isValid(key))
+      .map((code) => ({ code, name: this.moduleName(code) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   moduleKeys(): string[] {
