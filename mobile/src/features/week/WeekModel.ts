@@ -318,35 +318,6 @@ export class WeekModel extends Observable {
     TimetableEditStore.set(prefs, TimetableEdits.replacing(TimetableEditStore.edits(prefs), cancelled, replacement, repeat));
   }
 
-  /**
-   * A module's classes in the given week — lectures, labs, tutorials — for Add class: any
-   * module, the student's or not. Throws when the lookup fails.
-   */
-  async sessionsOf(code: string, weekIndex: number): Promise<TimetableEvent[]> {
-    const resolved = PagerIndex.resolve(weekIndex, this.weeks.length);
-    if (resolved === null || !this.source.moduleEvents) return [];
-    const events = await this.source.moduleEvents([code], [this.weeks[resolved]]);
-    return events
-      .filter((e) => e.activity.moduleCode === code)
-      .sort((a, b) => a.start.getTime() - b.start.getTime());
-  }
-
-  /**
-   * Adds a class found by Add class. Its module is remembered, so its classes go on being
-   * fetched for the weeks after, where an every-week edit finds them.
-   */
-  addClass(session: TimetableEvent, repeat: EditRepeat): void {
-    const code = session.activity.moduleCode;
-    const week = this.weeks.find((w) => session.start >= w.firstDay && session.start < addDays(w.firstDay, 7));
-    // In the week at once, before the module's other weeks are fetched behind it.
-    if (week) {
-      const others = this.rawOthersByWeekNumber.get(week.number) ?? [];
-      if (!others.some((e) => e.id === session.id)) this.rawOthersByWeekNumber.set(week.number, [...others, session]);
-    }
-    if (code) TimetableEditStore.addExtraModule(this.services.prefs, code);
-    this.edit('add', repeat, session);
-  }
-
   /** Every event loaded this session, for opening a class's page by id. */
   eventWithID(id: string): TimetableEvent | null {
     for (const list of this.eventsByWeekNumber.values()) {

@@ -7,9 +7,8 @@ import { Radius, Space, Type, useTheme } from './theme';
 
 /** One row of a wheel: a comfortable thumb's height, and what the selection band frames. */
 const ROW = 40;
-/** Rows either side of the selected one, fading as they turn away. */
+/** Rows either side of the selected one, fading as they turn away, unless a wheel asks for fewer. */
 const AROUND = 2;
-const HEIGHT = ROW * (AROUND * 2 + 1);
 const COLUMN = 72;
 
 /**
@@ -18,10 +17,12 @@ const COLUMN = 72;
  * everywhere else in the app, and every minute, since 23:59 is the commonest hand-in time.
  * Drawn rather than native so the phone, the browser and the Mac all get the same thing.
  */
-export function TimeWheel({ hours, minutes, onChange }: {
+export function TimeWheel({ hours, minutes, onChange, around = AROUND }: {
   hours: number;
   minutes: number;
   onChange: (hours: number, minutes: number) => void;
+  /** Rows shown either side of the chosen one: 1 for a card with no room to spare. */
+  around?: number;
 }) {
   const theme = useTheme();
   // Both wheels can come to rest in the same moment, before either change has come back as
@@ -35,11 +36,11 @@ export function TimeWheel({ hours, minutes, onChange }: {
     onChange(latest.current.hours, latest.current.minutes);
   };
   return (
-    <View style={styles.wheels}>
-      <View pointerEvents="none" style={[styles.band, { backgroundColor: theme.raised }]} />
-      <Wheel count={24} value={hours} label="Hour" onChange={(h) => change({ hours: h })} />
+    <View style={[styles.wheels, { height: ROW * (around * 2 + 1) }]}>
+      <View pointerEvents="none" style={[styles.band, { top: ROW * around, backgroundColor: theme.raised }]} />
+      <Wheel count={24} value={hours} label="Hour" around={around} onChange={(h) => change({ hours: h })} />
       <Txt type="title3" color={theme.inkSecondary} style={styles.colon} importantForAccessibility="no" accessibilityElementsHidden>:</Txt>
-      <Wheel count={60} value={minutes} label="Minutes" onChange={(m) => change({ minutes: m })} />
+      <Wheel count={60} value={minutes} label="Minutes" around={around} onChange={(m) => change({ minutes: m })} />
     </View>
   );
 }
@@ -57,8 +58,9 @@ const SETTLE_MS = 120;
 /** Long enough for the list to draw the rows a jump lands among. */
 const SNAP_PAUSE_MS = 250;
 
-function Wheel({ count, value, label, onChange }: {
+function Wheel({ count, value, label, around, onChange }: {
   count: number;
+  around: number;
   value: number;
   label: string;
   onChange: (value: number) => void;
@@ -185,7 +187,7 @@ function Wheel({ count, value, label, onChange }: {
       accessibilityValue={{ text: pad(value) }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={onAccessibilityAction}
-      style={styles.column}
+      style={[styles.column, { height: ROW * (around * 2 + 1) }]}
     >
       <Animated.FlatList
         ref={list}
@@ -195,10 +197,10 @@ function Wheel({ count, value, label, onChange }: {
         // Offsets leave out the spacer above, so a row's offset is the scroll that centres it.
         getItemLayout={(_, index) => ({ length: ROW, offset: ROW * index, index })}
         initialScrollIndex={DatePicking.wheelRow(value, count)}
-        initialNumToRender={AROUND * 2 + 3}
+        initialNumToRender={around * 2 + 3}
         windowSize={5}
-        ListHeaderComponent={<View style={styles.spacer} />}
-        ListFooterComponent={<View style={styles.spacer} />}
+        ListHeaderComponent={<View style={{ height: ROW * around }} />}
+        ListFooterComponent={<View style={{ height: ROW * around }} />}
         showsVerticalScrollIndicator={false}
         snapToInterval={ROW}
         decelerationRate="fast"
@@ -224,12 +226,11 @@ function pad(n: number): string {
 }
 
 const styles = StyleSheet.create({
-  wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: HEIGHT, gap: Space.xs },
+  wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.xs },
   // Behind the middle row of both wheels and the colon between them.
-  band: { position: 'absolute', left: 0, right: 0, top: ROW * AROUND, height: ROW, borderRadius: Radius.control },
-  column: { width: COLUMN, height: HEIGHT },
+  band: { position: 'absolute', left: 0, right: 0, height: ROW, borderRadius: Radius.control },
+  column: { width: COLUMN },
   colon: { fontVariant: ['tabular-nums'] },
   row: { height: ROW, alignItems: 'center', justifyContent: 'center' },
   figure: { fontVariant: ['tabular-nums'] },
-  spacer: { height: ROW * AROUND },
 });

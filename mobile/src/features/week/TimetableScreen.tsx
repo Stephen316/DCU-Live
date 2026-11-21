@@ -228,16 +228,12 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
         actions={{
           edit: ({ event, kind }, repeat) => model.edit(kind, repeat, event),
           replace: (cancelled, replacement, repeat) => model.replace(cancelled, replacement, repeat),
-          addClass: (session, repeat) => model.addClass(session, repeat),
           addOwnClass: (draft, repeat) => model.addCustomClass({ ...draft, id: uuid(), repeat }),
         }}
       />
       <AddClassCard
         visible={addingClass}
-        weekLabel={shownWeek ? `week ${shownWeek.label}` : ''}
         modules={addingClass ? model.moduleChoices() : []}
-        onFind={(code) => model.sessionsOf(code, model.weekIndex)}
-        onPick={(session) => setEditStep({ step: 'addRepeat', session })}
         weekStart={shownWeek?.firstDay ?? null}
         onSetOwn={(draft) => setEditStep({ step: 'ownRepeat', draft })}
         onClose={() => setAddingClass(false)}

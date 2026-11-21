@@ -46,9 +46,4 @@ export const TimetableEditStore = {
   removeCustomClass(prefs: Prefs, id: string): void {
     prefs.setJSON(PrefKey.customClasses, TimetableEditStore.customClasses(prefs).filter((c) => c.id !== id));
   },
-
-  addExtraModule(prefs: Prefs, code: string): void {
-    const codes = TimetableEditStore.extraModules(prefs);
-    if (!codes.includes(code)) prefs.setJSON(PrefKey.extraModules, [...codes, code]);
-  },
 };
