@@ -1,10 +1,12 @@
 import { CancellationRules, CancellationTally } from '../core/cancellation';
+import { makeChange, TimetableChange } from '../core/profile';
 import { Deadline, DeadlineRules, DeadlineStanding, makeDeadline } from '../core/deadline';
 import { parseActivityCode } from '../core/activityCode';
 import { addDays, daysBetween, HOUR, startOfDay, startOfWeek } from '../core/time';
 import { EventType, TimetableCategory, TimetableEvent, WeekCalendar } from '../core/timetableEvent';
 import { TimetableSource } from './dcuApi';
 import { AlertScheduler } from './alerts';
+import { SharedClassInput, TimetableChangeStore } from './courseData';
 import { createServices, Services } from './services';
 import { SecretStore } from './session';
 import { AsyncKV, MemoryKV, PrefKey } from './storage';
@@ -204,6 +206,31 @@ class PreviewDeadlineStore implements DeadlineStore {
   async unhideAllAuthors() {}
 }
 
+/** Classes shared in the preview: kept for the session, as if the course had them. */
+class PreviewTimetableChangeStore implements TimetableChangeStore {
+  private saved: TimetableChange[] = [];
+  private next = 1;
+
+  async changes(courseKey: string): Promise<TimetableChange[]> {
+    return this.saved.filter((c) => c.courseKey === courseKey);
+  }
+
+  async share(input: SharedClassInput): Promise<string> {
+    // A uuid's shape, as the server's ids have.
+    const id = `00000000-0000-4000-8000-${String(this.next++).padStart(12, '0')}`;
+    this.saved.push(makeChange({
+      id, courseKey: input.courseKey, kind: 'add', module: input.module, title: input.title,
+      activityCode: `${input.module}[1]OC/${input.kind}1`, dates: [...input.dates].sort(),
+      start: input.start, end: input.end, room: input.room, shared: true,
+    }));
+    return id;
+  }
+
+  async withdrawShared(id: string): Promise<void> {
+    this.saved = this.saved.filter((c) => c.id !== id);
+  }
+}
+
 /** `alerts` as for the real thing, so the web preview shows notifications off as the web build does. */
 export async function createPreviewServices(_deviceKV: AsyncKV, alerts?: AlertScheduler | null): Promise<Services> {
   const kv = new MemoryKV();
@@ -219,6 +246,7 @@ export async function createPreviewServices(_deviceKV: AsyncKV, alerts?: AlertSc
   const services = await createServices({ kv, secrets: secretStore, env: {}, alerts });
   services.sourceOverride = new PreviewTimetableSource();
   services.cancellations = new PreviewCancellationStore();
+  services.timetableChanges = new PreviewTimetableChangeStore();
   // Private ones still go round the fixture, as they would round the server.
   services.deadlines = new PrivateDeadlineStore(new PreviewDeadlineStore(), services.prefs, () => services.reporter.current);
   return services;

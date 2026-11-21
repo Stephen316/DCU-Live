@@ -10,7 +10,8 @@ import { useWeekFirst } from '../../ui/floatingBar';
 import { listenForAlertTaps } from '../../data/notifications';
 import { useAppEvent, useModel, useNow } from '../../state/hooks';
 import { useRoot, useWeekModel } from '../../state/root';
-import { EmptyState, IconButton, Label, PillButton, PrimaryButton, ScreenHeader, Txt } from '../../ui/components';
+import { ActionSheet, EmptyState, IconButton, Label, PillButton, PrimaryButton, ScreenHeader, Txt } from '../../ui/components';
+import { errorMessage } from '../../data/rest';
 import { LoadingScreen } from '../../ui/LoadingScreen';
 import { Space, useTheme } from '../../ui/theme';
 import { useTutorial } from '../tutorial/Tutorial';
@@ -43,6 +44,8 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
   const [editing, setEditing] = useState(false);
   const [editStep, setEditStep] = useState<EditStep | null>(null);
   const [addingClass, setAddingClass] = useState(false);
+  /** Said when sharing a class, or taking one down, didn't reach the server. */
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
   const tutorial = useTutorial();
 
   useEffect(() => {
@@ -86,6 +89,7 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
     edit: { event, kind },
     cancelled: kind === 'remove' && model.status(event).isFlagged,
     replacements: kind === 'remove' ? model.replacementsFor(event) : [],
+    sharedByMe: kind === 'remove' && model.sharedByMe(event),
   });
 
   let body: ReactNode;
@@ -228,15 +232,42 @@ export function TimetableScreen({ mode, owner = false }: { mode: 'day' | 'week';
         actions={{
           edit: ({ event, kind }, repeat) => model.edit(kind, repeat, event),
           replace: (cancelled, replacement, repeat) => model.replace(cancelled, replacement, repeat),
-          addOwnClass: (draft, repeat) => model.addCustomClass({ ...draft, id: uuid(), repeat }),
+          addOwnClass: (draft, repeat, shared) => {
+            if (!shared) {
+              model.addCustomClass({ ...draft, id: uuid(), repeat });
+              return;
+            }
+            // Kept for them alone if it can't be shared, rather than lost.
+            model.shareClass(draft, repeat).catch((error: unknown) => {
+              model.addCustomClass({ ...draft, id: uuid(), repeat });
+              setNotice({
+                title: "Couldn't share it",
+                message: `${errorMessage(error, 'The server did not answer.')} It's on your timetable only.`,
+              });
+            });
+          },
+          withdrawShared: (event) => {
+            model.withdrawShared(event).catch((error: unknown) => setNotice({
+              title: "Couldn't remove it",
+              message: `${errorMessage(error, 'The server did not answer.')} It's still on everyone's timetable.`,
+            }));
+          },
         }}
       />
       <AddClassCard
         visible={addingClass}
         modules={addingClass ? model.moduleChoices() : []}
+        shareCourse={model.shareCourse}
         weekStart={shownWeek?.firstDay ?? null}
-        onSetOwn={(draft) => setEditStep({ step: 'ownRepeat', draft })}
+        onSetOwn={(draft, shared) => setEditStep({ step: 'ownRepeat', draft, shared })}
         onClose={() => setAddingClass(false)}
+      />
+      <ActionSheet
+        visible={notice !== null}
+        title={notice?.title}
+        message={notice?.message}
+        actions={[{ label: 'OK', onPress: () => {} }]}
+        onClose={() => setNotice(null)}
       />
     </View>
   );

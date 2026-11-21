@@ -5,7 +5,7 @@ import { CUSTOM_KINDS, CustomClass, CustomKind, timeAfter } from '../../core/cus
 import { EditRepeat, TimetableEdit } from '../../core/timetableEdits';
 import { addDays, DublinTime, formatTime, formatWeekdayDayMonth, isSameDay, startOfDay, weekdayName } from '../../core/time';
 import { shortTitleOf, TimetableEvent } from '../../core/timetableEvent';
-import { ActionSheet, BottomCard, Icon, IconButton, PrimaryButton, Segmented, SheetAction, Txt } from '../../ui/components';
+import { ActionSheet, AppSwitch, BottomCard, Icon, IconButton, PrimaryButton, Segmented, SheetAction, Txt } from '../../ui/components';
 import { DropdownMenu } from '../../ui/DropdownMenu';
 import { TimeWheel } from '../../ui/TimeWheel';
 import { Radius, Space, useTheme } from '../../ui/theme';
@@ -25,16 +25,19 @@ export interface PendingEdit {
  * how long.
  */
 export type EditStep =
-  | { step: 'choose'; edit: PendingEdit; cancelled: boolean; replacements: TimetableEvent[] }
+  | { step: 'choose'; edit: PendingEdit; cancelled: boolean; replacements: TimetableEvent[]; sharedByMe: boolean }
   | { step: 'replaceWith'; event: TimetableEvent; replacements: TimetableEvent[] }
   | { step: 'replaceRepeat'; event: TimetableEvent; replacement: TimetableEvent }
-  | { step: 'ownRepeat'; draft: OwnClassDraft };
+  | { step: 'ownRepeat'; draft: OwnClassDraft; shared: boolean };
 
 /** What the sheets hand back once the student has decided. */
 export interface EditActions {
   edit: (edit: PendingEdit, repeat: EditRepeat) => void;
   replace: (cancelled: TimetableEvent, replacement: TimetableEvent, repeat: EditRepeat) => void;
-  addOwnClass: (draft: OwnClassDraft, repeat: EditRepeat) => void;
+  /** `shared`: for everyone on the course (supabase/phase61), not just this student. */
+  addOwnClass: (draft: OwnClassDraft, repeat: EditRepeat, shared: boolean) => void;
+  /** Takes down a class this student shared, for everyone. */
+  withdrawShared: (event: TimetableEvent) => void;
 }
 
 /** A class set at a time of the student's own, before they say how often. */
@@ -68,7 +71,7 @@ export function EditSheets({ step, onStep, actions }: {
   let message: string | undefined;
   let list: SheetAction[] = [];
   if (shown?.step === 'choose') {
-    const { edit, cancelled, replacements } = shown;
+    const { edit, cancelled, replacements, sharedByMe } = shown;
     const verb = edit.kind === 'add' ? 'Add' : 'Remove';
     const remove = edit.kind === 'remove';
     // With a swap on offer it's no longer only a question of removing it.
@@ -77,10 +80,16 @@ export function EditSheets({ step, onStep, actions }: {
     const replace: SheetAction[] = remove && replacements.length > 0
       ? [{ label: 'Replace with another session…', icon: 'swap', onPress: () => onStep({ step: 'replaceWith', event: edit.event, replacements }) }]
       : [];
-    const choices: SheetAction[] = [
-      { label: `${verb} every week`, destructive: remove, onPress: () => actions.edit(edit, 'weekly') },
-      { label: `${verb} only on ${formatWeekdayDayMonth(edit.event.start)}`, destructive: remove, onPress: () => actions.edit(edit, 'once') },
-    ];
+    // One they shared themselves comes off everyone's timetable, or off just theirs for a day.
+    const choices: SheetAction[] = remove && sharedByMe
+      ? [
+          { label: 'Remove for everyone', destructive: true, onPress: () => actions.withdrawShared(edit.event) },
+          { label: `Hide only on ${formatWeekdayDayMonth(edit.event.start)}`, onPress: () => actions.edit(edit, 'once') },
+        ]
+      : [
+          { label: `${verb} every week`, destructive: remove, onPress: () => actions.edit(edit, 'weekly') },
+          { label: `${verb} only on ${formatWeekdayDayMonth(edit.event.start)}`, destructive: remove, onPress: () => actions.edit(edit, 'once') },
+        ];
     // A cancelled class is most likely being swapped; any other, dropped.
     list = cancelled ? [...replace, ...choices] : [...choices, ...replace];
   } else if (shown?.step === 'replaceWith') {
@@ -101,13 +110,14 @@ export function EditSheets({ step, onStep, actions }: {
       { label: 'Every week', onPress: () => actions.replace(event, replacement, 'weekly') },
     ];
   } else if (shown?.step === 'ownRepeat') {
-    const { draft } = shown;
+    const { draft, shared } = shown;
     const day = DublinTime.date(draft.date, draft.start);
-    title = `Add ${draft.title ?? draft.code}?`;
-    message = `${day ? weekdayName(day) : ''} ${draft.start}–${draft.end} · ${kindLabel(draft.kind)}`.trim();
+    title = shared ? `Add ${draft.title ?? draft.code} for everyone?` : `Add ${draft.title ?? draft.code}?`;
+    const when = `${day ? weekdayName(day) : ''} ${draft.start}–${draft.end} · ${kindLabel(draft.kind)}`.trim();
+    message = shared ? `${when}. Everyone on your course will see it.` : when;
     list = [
-      { label: day ? `Add only on ${formatWeekdayDayMonth(day)}` : 'Add only this week', onPress: () => actions.addOwnClass(draft, 'once') },
-      { label: 'Add every week', onPress: () => actions.addOwnClass(draft, 'weekly') },
+      { label: day ? `Add only on ${formatWeekdayDayMonth(day)}` : 'Add only this week', onPress: () => actions.addOwnClass(draft, 'once', shared) },
+      { label: 'Add every week', onPress: () => actions.addOwnClass(draft, 'weekly', shared) },
     ];
   }
 
@@ -125,22 +135,26 @@ export interface ModuleChoice {
  * Add class: a class at a time of the student's own, for one DCU's timetable doesn't show
  * then — a lecture moved by email, a make-up lab. One of their modules, what kind of class,
  * the day, time and length, then "once or every week" on the next card. All of it fits on
- * the card at once, with nothing to scroll to: the date line over the button says which day
- * and week it lands on.
+ * the card at once, with nothing to scroll to. For everyone on the course by default, where
+ * there's a course to share it with; the next card says which day it lands on.
  */
-export function AddClassCard({ visible, weekStart, modules, onSetOwn, onClose }: {
+export function AddClassCard({ visible, weekStart, modules, shareCourse, onSetOwn, onClose }: {
   visible: boolean;
+  /** The course a class can be shared with, or null when there's none: then it's theirs alone. */
+  shareCourse: string | null;
   /** Monday of the week on screen, for the days offered. */
   weekStart: Date | null;
   /** The student's own modules: the only ones offered. */
   modules: ModuleChoice[];
-  onSetOwn: (draft: OwnClassDraft) => void;
+  onSetOwn: (draft: OwnClassDraft, shared: boolean) => void;
   onClose: () => void;
 }) {
   const theme = useTheme();
   const [code, setCode] = useState<string | null>(null);
   const [own, setOwn] = useState<OwnForm>(() => blankOwnForm(weekStart));
   const [pickingModule, setPickingModule] = useState(false);
+  // On by default: a class DCU's timetable has wrong is most often wrong for the whole course.
+  const [shared, setShared] = useState(true);
   const moduleButton = useRef<View>(null);
   // iOS ignores a modal presented while another is still animating away, so the next card
   // waits for this one to finish going, with a fallback in case that never comes.
@@ -156,6 +170,7 @@ export function AddClassCard({ visible, weekStart, modules, onSetOwn, onClose }:
   const close = () => {
     setCode(null);
     setPickingModule(false);
+    setShared(true);
     setOwn(blankOwnForm(weekStart));
     onClose();
   };
@@ -184,7 +199,8 @@ export function AddClassCard({ visible, weekStart, modules, onSetOwn, onClose }:
       code, title: own.title.trim() || (chosen && chosen.name !== chosen.code ? chosen.name : null), kind: own.kind, date: DublinTime.dateString(ownDay), start, end,
       room: own.room.trim() || null,
     };
-    closeThen(() => onSetOwn(draft));
+    const forEveryone = shared && shareCourse !== null;
+    closeThen(() => onSetOwn(draft, forEveryone));
   };
 
   return (
@@ -241,6 +257,15 @@ export function AddClassCard({ visible, weekStart, modules, onSetOwn, onClose }:
             style={[styles.input, { color: theme.ink }]}
           />
         </View>
+        {shareCourse !== null ? (
+          <>
+            <View style={[styles.hairline, { backgroundColor: theme.separator }]} />
+            <View style={styles.moduleRow}>
+              <Txt style={styles.shareLabel}>For everyone on your course</Txt>
+              <AppSwitch value={shared} onValueChange={setShared} accessibilityLabel="For everyone on your course" />
+            </View>
+          </>
+        ) : null}
       </View>
       <DropdownMenu
         visible={pickingModule}
@@ -296,10 +321,6 @@ export function AddClassCard({ visible, weekStart, modules, onSetOwn, onClose }:
       <View style={styles.footer}>
         {end === null ? (
           <Txt type="footnote" color={theme.destructive} style={styles.centre}>That runs past midnight: start it earlier or make it shorter.</Txt>
-        ) : ownDay ? (
-          <Txt type="footnote" color={theme.inkSecondary} style={styles.centre}>
-            {formatWeekdayDayMonth(ownDay)}, {start}–{end}
-          </Txt>
         ) : null}
         <PrimaryButton title={code ? 'Next' : 'Choose a module'} onPress={next} disabled={!ready} />
       </View>
@@ -342,6 +363,7 @@ const styles = StyleSheet.create({
   moduleButton: { flex: 1, alignItems: 'flex-end' },
   moduleChoice: { flexDirection: 'row', alignItems: 'center', gap: Space.xs, maxWidth: '100%', minHeight: 44 },
   moduleName: { flexShrink: 1, textAlign: 'right' },
+  shareLabel: { flex: 1 },
   inputs: { flexDirection: 'row', alignItems: 'stretch' },
   divider: { width: StyleSheet.hairlineWidth, marginVertical: Space.s },
   input: { flex: 1, minWidth: 0, fontSize: 17, minHeight: 44, paddingHorizontal: Space.m },
@@ -350,7 +372,8 @@ const styles = StyleSheet.create({
   lengthColumn: { flex: 1, gap: Space.xs },
   timeLabel: { fontWeight: '600', marginHorizontal: Space.s },
   // As a segmented control, stood on end: the chosen length on the violet pill.
-  lengths: { borderRadius: Radius.control + 3, padding: 3, gap: 2 },
-  length: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.control },
+  lengths: { borderRadius: Radius.control + 3, padding: 3 },
+  // The same height as a segmented control's segments, so the three fit beside the wheel.
+  length: { minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.control },
   footer: { gap: Space.s },
 });

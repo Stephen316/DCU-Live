@@ -127,6 +127,8 @@ export const PrefKey = {
   extraModules: 'extraModules',
   /** `CustomClass[]`: classes the student set at a time of their own through Add class. */
   customClasses: 'customClasses',
+  /** `string[]`: ids of the `timetable_changes` rows this student shared, so they can take one down. */
+  sharedClasses: 'sharedClasses',
   /** Set when an account is created here, or the tutorial asked for again; cleared once it's done. */
   tutorialDue: 'tutorialDue',
   /**

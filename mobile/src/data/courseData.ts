@@ -4,7 +4,8 @@ import {
 } from '../core/profile';
 import { ModuleSplit, splitFromRow } from '../core/splits';
 import { ModuleTitle, ModuleTitles } from '../core/timetableEvent';
-import { rows, SupabaseREST } from './rest';
+import { rows, ServiceError, SupabaseREST } from './rest';
+import { deadlineRefusal } from './stores';
 import { PrefKey, Prefs } from './storage';
 
 const describe = (status: number) => `The server returned ${status}.`;
@@ -351,28 +352,83 @@ export const LabRotationRefresh = {
 
 // MARK: - Timetable changes
 
-/** The timetable changes saved in the console for a course (`timetable_changes`). */
+/** A class a student puts on everyone's timetable on their course, from Add class. */
+export interface SharedClassInput {
+  courseKey: string;
+  module: string;
+  title: string;
+  kind: 'L' | 'P' | 'T';
+  /** Dublin calendar dates, yyyy-MM-dd: one, or one a week. */
+  dates: string[];
+  start: string;
+  end: string;
+  room: string | null;
+}
+
+/**
+ * The timetable changes for a course (`timetable_changes`): the console's, and the classes
+ * students on the course shared (supabase/phase61).
+ */
 export interface TimetableChangeStore {
   changes(courseKey: string): Promise<TimetableChange[]>;
+  /** Saves a shared class, returning its change's id. Throws with the server's reason. */
+  share(input: SharedClassInput): Promise<string>;
+  /** Takes down a class this student shared. */
+  withdrawShared(id: string): Promise<void>;
 }
+
+const CHANGE_COLUMNS = 'id,course_key,grp,kind,module,activity_code,title,dates,start_time,end_time,room,staff';
 
 export class SupabaseTimetableChangeStore implements TimetableChangeStore {
   constructor(private readonly rest: SupabaseREST) {}
 
   async changes(courseKey: string): Promise<TimetableChange[]> {
     // Signed in or not at all: the anon key reads an empty table, which would wipe the cache.
-    const json = await this.rest.json('GET', '/rest/v1/timetable_changes', describe, {
+    const ask = (columns: string) => this.rest.json('GET', '/rest/v1/timetable_changes', describe, {
       auth: 'userOnly',
-      query: [
-        ['select', 'id,course_key,grp,kind,module,activity_code,title,dates,start_time,end_time,room,staff'],
-        ['course_key', `eq.${courseKey}`],
-        ['order', 'created_at'],
-      ],
+      query: [['select', columns], ['course_key', `eq.${courseKey}`], ['order', 'created_at']],
     });
+    let json: unknown;
+    try {
+      json = await ask(`${CHANGE_COLUMNS},shared`);
+    } catch (error) {
+      // Until phase 61 has run there's no `shared` column, and PostgREST refuses the whole
+      // question: ask the old one, so the console's changes still come down.
+      if (!(error instanceof ServiceError) || error.status !== 400) throw error;
+      json = await ask(CHANGE_COLUMNS);
+    }
     return rows(json).flatMap((r) => {
       const change = changeFromRow(r);
       return change ? [change] : [];
     });
+  }
+
+  async share(input: SharedClassInput): Promise<string> {
+    const id = await this.rpc('share_class', {
+      p_class: {
+        course_key: input.courseKey, module: input.module, title: input.title, kind: input.kind,
+        dates: input.dates, start_time: input.start, end_time: input.end, room: input.room,
+      },
+    });
+    if (typeof id !== 'string') throw new ServiceError(500, "Couldn't share that class.");
+    return id;
+  }
+
+  async withdrawShared(id: string): Promise<void> {
+    await this.rpc('withdraw_shared_class', { p_id: id });
+  }
+
+  /** The database's own reason when it refuses ("you have shared 10 classes today"), as a sentence. */
+  private async rpc(name: string, args: Record<string, unknown>): Promise<unknown> {
+    const response = await this.rest.request('POST', `/rest/v1/rpc/${name}`, { body: args, auth: 'userOnly' });
+    const text = await response.text();
+    if (!response.ok) throw new ServiceError(response.status, deadlineRefusal(text) ?? describe(response.status));
+    if (text.length === 0) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
   }
 }
 
