@@ -598,6 +598,8 @@ describe('Timetable changes', () => {
       if (this.failing) throw new Error('offline');
       return this.list;
     }
+    async share(): Promise<string> { return 'shared-1'; }
+    async withdrawShared() {}
   }
 
   test('new changes are cached once', async () => {

@@ -5,6 +5,7 @@ import {
   CONFIRM_THRESHOLD, Deadline, deadlineKindLabel, DeadlineRules, displayTitle, gradeWeightLabel, isSatInClass,
 } from '../../core/deadline';
 import { Lecturer, lecturerDisplayName, lecturerInitials } from '../../core/misc';
+import { SharedClasses } from '../../core/profile';
 import { locationDisplay } from '../../core/roomLocation';
 import { formatComplete, formatTime, formatWeekdayDayMonth } from '../../core/time';
 import { eventTypeLabel, groupLabelOf, shortTitleOf, TimetableEvent, titleOf } from '../../core/timetableEvent';
@@ -38,6 +39,12 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
   /** Non-null while the "are you sure?" card is up, holding the side being reported. */
   const [pendingReport, setPendingReport] = useState<ReportStance | null>(null);
   const status = model.status;
+  // Shared by a classmate (supabase/phase61): the same votes say whether it's on at all.
+  const shared = SharedClasses.isShared(event);
+  const summary = shared && !status.verdict
+    ? status.reportCount < 1 ? "Nobody has said this class isn't on"
+      : status.reportCount === 1 ? "1 person says this isn't on" : `${status.reportCount} people say this isn't on`
+    : status.summary;
 
   useEffect(() => {
     void model.load();
@@ -144,7 +151,9 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
           footer={
             model.canDecide
               ? 'Your decision replaces the count for everyone straight away. Say it\'s on to clear a wrong report.'
-              : `Reports are anonymous. A class is flagged with an orange ! once ${CANCELLATION_THRESHOLD} people report it and they stay ${CANCELLATION_NET_THRESHOLD} ahead of anyone saying it went ahead.`
+              : shared
+                ? `A classmate added this for everyone on your course. If it isn't on, say so: once ${CANCELLATION_THRESHOLD} people have and they stay ${CANCELLATION_NET_THRESHOLD} ahead of anyone saying it's on, it's greyed out for everyone. Reports are anonymous, and so is who added it.`
+                : `Reports are anonymous. A class is flagged with an orange ! once ${CANCELLATION_THRESHOLD} people report it and they stay ${CANCELLATION_NET_THRESHOLD} ahead of anyone saying it went ahead.`
           }
         >
           {/*
@@ -155,7 +164,7 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
             <Row>
               <Label
                 icon={verdictIcon(status.verdict.state)}
-                text={status.summary}
+                text={summary}
                 type="headline"
                 color={status.verdict.state === 'running' ? theme.ink : theme.tint.off}
               />
@@ -164,9 +173,9 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
               {status.crowdSummary ? <Txt type="caption" color={theme.inkSecondary}>{status.crowdSummary}</Txt> : null}
             </Row>
           ) : status.isFlagged ? (
-            <Row><Label icon="alert" text={status.summary} color={theme.tint.off} /></Row>
+            <Row><Label icon="alert" text={summary} color={theme.tint.off} /></Row>
           ) : (
-            <Row><Txt color={theme.inkSecondary}>{status.summary}</Txt></Row>
+            <Row><Txt color={theme.inkSecondary}>{summary}</Txt></Row>
           )}
 
           {model.canDecide
@@ -198,11 +207,11 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
                 )
               : [
                   <View key="c" ref={reportButton} collapsable={false}>
-                    <ActionRow title="Report: lecture cancelled" icon="reportOutline" disabled={model.isBusy} onPress={() => setPendingReport('cancelled')} />
+                    <ActionRow title={shared ? "Report: it's not on" : 'Report: lecture cancelled'} icon="reportOutline" disabled={model.isBusy} onPress={() => setPendingReport('cancelled')} />
                   </View>,
                   // Only when there's a cancellation to contradict: silence already means "it ran".
                   status.reportCount > 0
-                    ? <ActionRow key="o" title="Report: lecture is on" icon="runningOutline" disabled={model.isBusy} onPress={() => setPendingReport('on')} />
+                    ? <ActionRow key="o" title={shared ? "Report: it's on" : 'Report: lecture is on'} icon="runningOutline" disabled={model.isBusy} onPress={() => setPendingReport('on')} />
                     : null,
                 ]}
 
@@ -277,13 +286,15 @@ export function LectureScreen({ event, isClashing, known }: { event: TimetableEv
       <ConfirmSheet
         visible={pendingReport !== null}
         onClose={() => setPendingReport(null)}
-        title={pendingReport === 'on' ? 'Report that this lecture went ahead?' : 'Report this lecture as cancelled?'}
+        title={pendingReport === 'on'
+          ? shared ? 'Report that this class is on?' : 'Report that this lecture went ahead?'
+          : shared ? "Report that this class isn't on?" : 'Report this lecture as cancelled?'}
         message={
           model.practice
             ? "This is the tutorial's practice run: it stays on this phone, and nobody else sees it."
             : 'Everyone taking this module sees the count. You can undo it afterwards.'
         }
-        confirmTitle={pendingReport === 'on' ? 'Report it was on' : 'Report cancelled'}
+        confirmTitle={pendingReport === 'on' ? 'Report it was on' : shared ? "Report it's not on" : 'Report cancelled'}
         icon={pendingReport === 'on' ? 'running' : 'report'}
         // The same orange the banner and the timetable outline use.
         tint={pendingReport === 'on' ? theme.accent : theme.tint.off}

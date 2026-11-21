@@ -2,6 +2,7 @@ import { CancellationStatus, verdictSource } from './cancellation';
 import { ActivityKind, cohortText, KIND_ORDER, kindLabel } from './activityCode';
 import { groupKeyOf, shortTitleOf, TimetableEvent } from './timetableEvent';
 import { addDays, daysBetween, formatDayMonth, isSameDay, startOfDay, startOfWeek } from './time';
+import { SharedClasses } from './profile';
 import { uuid } from './uuid';
 
 export type DeadlineKind = 'assignment' | 'labReport' | 'quiz' | 'exam' | 'presentation' | 'other';
@@ -299,10 +300,14 @@ export function deadlineTrust(deadline: Deadline, standing: DeadlineStanding): D
  * `cancelled` is settled — the crowd cleared the bar, or an organiser said so — and the
  * class is greyed out. `reported` is short of the bar: a warning, not a fact.
  */
+/**
+ * `shared` marks a class a student shared for the course (supabase/phase61): the same votes
+ * say it isn't on at all, rather than that it was called off.
+ */
 export type ClassHighlight =
-  | { kind: 'cancelled'; reportCount: number; decidedBy: string | null }
+  | { kind: 'cancelled'; reportCount: number; decidedBy: string | null; shared?: true }
   | { kind: 'moved'; source: string }
-  | { kind: 'reported'; reportCount: number }
+  | { kind: 'reported'; reportCount: number; shared?: true }
   | { kind: 'test'; title: string }
   | { kind: 'assignment'; title: string };
 
@@ -311,11 +316,12 @@ export function highlightReason(highlight: ClassHighlight): string {
     case 'cancelled':
       // A verdict rendered as "Reported cancelled · 0 people" reads as nobody thinks it's
       // cancelled — the opposite of what it means.
-      if (highlight.decidedBy !== null) return `Cancelled · confirmed by ${highlight.decidedBy}`;
+      if (highlight.decidedBy !== null) return `${highlight.shared ? 'Not on' : 'Cancelled'} · confirmed by ${highlight.decidedBy}`;
+      if (highlight.shared) return `Not on · ${highlight.reportCount} people say so`;
       return `Cancelled · reported by ${highlight.reportCount} people`;
     case 'moved': return `Moved · ${highlight.source}`;
     case 'reported':
-      return `Reported cancelled · ${highlight.reportCount === 1 ? '1 person' : `${highlight.reportCount} people`}`;
+      return `Reported ${highlight.shared ? 'not on' : 'cancelled'} · ${highlight.reportCount === 1 ? '1 person' : `${highlight.reportCount} people`}`;
     case 'test': return `${highlight.title} today`;
     case 'assignment': return `${highlight.title} due today`;
   }
@@ -453,11 +459,13 @@ export const DeadlineRules = {
 
   /** What (if anything) to outline this class with. */
   highlight(event: TimetableEvent, deadlines: Deadline[], cancellation: CancellationStatus): ClassHighlight | null {
+    const shared = SharedClasses.isShared(event) ? { shared: true as const } : {};
     if (cancellation.isFlagged) {
       return {
         kind: 'cancelled',
         reportCount: cancellation.reportCount,
         decidedBy: cancellation.verdict ? verdictSource(cancellation.verdict) : null,
+        ...shared,
       };
     }
     // A moved class is still on, so it never reaches the branch above — but turning up to
@@ -465,7 +473,7 @@ export const DeadlineRules = {
     if (cancellation.verdict?.state === 'moved') {
       return { kind: 'moved', source: verdictSource(cancellation.verdict) };
     }
-    if (cancellation.isReported) return { kind: 'reported', reportCount: cancellation.reportCount };
+    if (cancellation.isReported) return { kind: 'reported', reportCount: cancellation.reportCount, ...shared };
     const today = DeadlineRules.dueAt(event, deadlines);
     const test = today.find((d) => isSatInClass(d.kind));
     if (test) return { kind: 'test', title: displayTitle(test) };

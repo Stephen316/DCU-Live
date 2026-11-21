@@ -289,11 +289,16 @@ export interface TimetableChange {
   room: string | null;
   /** The lecturer, as a person reads it. */
   staff: string | null;
+  /**
+   * Added by a student for everyone on their course, from Add class (supabase/phase61), rather
+   * than by the console. Classmates vote on whether it's on, and it greys out when it isn't.
+   */
+  shared: boolean;
 }
 
 export function makeChange(fields: Partial<TimetableChange> & Pick<TimetableChange, 'id' | 'courseKey' | 'kind' | 'module' | 'dates' | 'start'>): TimetableChange {
   return {
-    group: null, activityCode: null, title: null, end: null, room: null, staff: null,
+    group: null, activityCode: null, title: null, end: null, room: null, staff: null, shared: false,
     ...fields,
   };
 }
@@ -321,6 +326,7 @@ export function changeFromRow(row: Record<string, unknown>): TimetableChange | n
     end: opt(row.end_time),
     room: opt(row.room),
     staff: opt(row.staff),
+    shared: row.shared === true,
   };
 }
 
@@ -477,6 +483,36 @@ export const TimetableChanges = {
   },
 };
 
+/** Every shared class's event id starts with this, so the app can tell them from the console's. */
+const SHARED_PREFIX = 'shared-';
+
+export const SharedClasses = {
+  isShared(event: TimetableEvent): boolean {
+    return event.id.startsWith(SHARED_PREFIX);
+  },
+
+  /** The `timetable_changes` row a shared class was drawn from: "shared-<uuid>-2026-11-19". */
+  changeIdOf(event: TimetableEvent): string | null {
+    if (!SharedClasses.isShared(event)) return null;
+    const rest = event.id.slice(SHARED_PREFIX.length);
+    return rest.length > 11 ? rest.slice(0, -11) : null;
+  },
+
+  /**
+   * The dates an every-week shared class is on: `date`, then the same weekday in each teaching
+   * week after the one it's in — so reading week, which isn't one, is skipped. At most 60, the
+   * most a change holds. A date in no teaching week is on that date alone.
+   */
+  weeklyDates(date: string, weekStarts: Date[]): string[] {
+    const day = (text: string) => Date.parse(`${text}T00:00:00Z`);
+    const starts = weekStarts.map((w) => DublinTime.dateString(w));
+    const home = starts.findIndex((s) => day(s) <= day(date) && day(date) < day(s) + 7 * 86_400_000);
+    if (home < 0) return [date];
+    const offset = day(date) - day(starts[home]);
+    return starts.slice(home, home + 60).map((s) => new Date(day(s) + offset).toISOString().slice(0, 10));
+  },
+};
+
 function added(change: TimetableChange, date: string): TimetableEvent | null {
   if (change.end === null) return null;
   const start = DublinTime.date(date, change.start);
@@ -484,14 +520,15 @@ function added(change: TimetableChange, date: string): TimetableEvent | null {
   if (!start || !end) return null;
   const title = change.title ?? 'Class';
   return {
-    id: `change-${change.id}-${date}`,
+    id: `${change.shared ? SHARED_PREFIX : 'change-'}${change.id}-${date}`,
     start,
     end,
     type: 'onCampus',
     locations: change.room !== null ? [change.room] : [],
     moduleName: `${title} · ${change.module}`,
     staff: change.staff !== null ? [change.staff] : [],
-    activity: parseActivityCode(change.module),
+    // A shared class names its kind in its code (MS134[1]OC/L1), as an Add class of one's own does.
+    activity: parseActivityCode(change.shared && change.activityCode ? change.activityCode : change.module),
     weekLabels: [],
   };
 }

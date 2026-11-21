@@ -2,7 +2,7 @@ import { CancellationRules, CancellationStatus } from '../../core/cancellation';
 import { ClassAlerts } from '../../core/classAlerts';
 import { ClassHighlight, Deadline, DeadlineRules } from '../../core/deadline';
 import { PagerIndex } from '../../core/misc';
-import { TimetableAudience, TimetableChange, TimetableChanges } from '../../core/profile';
+import { SharedClasses, TimetableAudience, TimetableChange, TimetableChanges } from '../../core/profile';
 import { ModuleSplit, ModuleSplits, surnameInitial } from '../../core/splits';
 import { campusName, parsedLocations } from '../../core/roomLocation';
 import { ClashDetector, DefaultDay } from '../../core/schedule';
@@ -12,6 +12,7 @@ import { ModuleAbbreviation, ModuleAbbreviations } from '../../core/abbreviation
 import { CustomClass, CustomClasses } from '../../core/customClasses';
 import { EditRepeat, ModuleCode, TimetableEdit, TimetableEdits } from '../../core/timetableEdits';
 import { PushTargetsRules } from '../../core/webPush';
+import { TimetableChangeRefresh } from '../../data/courseData';
 import { errorMessage } from '../../data/rest';
 import { userEmail } from '../../data/session';
 import { Services } from '../../data/services';
@@ -299,6 +300,62 @@ export class WeekModel extends Observable {
   /** Puts a class of the student's own on their timetable, at the time they chose. */
   addCustomClass(added: CustomClass): void {
     TimetableEditStore.addCustomClass(this.services.prefs, added);
+  }
+
+  // MARK: - Shared classes
+
+  /** The course a class from Add class can be shared with, or null when there's none to share with. */
+  get shareCourse(): string | null {
+    return this.audience && this.services.timetableChanges ? this.audience.courseKey : null;
+  }
+
+  /**
+   * Puts a class on the timetable of everyone on the student's course (supabase/phase61): on
+   * its day, or on that weekday in every teaching week from then on. Throws with the reason
+   * when it can't, so the student can be told and the class kept for them alone instead.
+   */
+  async shareClass(added: Omit<CustomClass, 'id' | 'repeat'>, repeat: EditRepeat): Promise<void> {
+    const store = this.services.timetableChanges;
+    const course = this.shareCourse;
+    if (!store || !course) throw new Error("There's no course to share it with.");
+    const id = await store.share({
+      courseKey: course, module: added.code, title: added.title ?? added.code, kind: added.kind,
+      dates: repeat === 'once' ? [added.date] : SharedClasses.weeklyDates(added.date, this.weeks.map((w) => w.firstDay)),
+      start: added.start, end: added.end, room: added.room,
+    });
+    this.services.prefs.setJSON(PrefKey.sharedClasses, [...this.mySharedIds(), id]);
+    await this.refreshChanges();
+  }
+
+  /** Whether the student shared this class themselves, and so may take it down for everyone. */
+  sharedByMe(event: TimetableEvent): boolean {
+    const id = SharedClasses.changeIdOf(event);
+    return id !== null && this.mySharedIds().includes(id);
+  }
+
+  /** Takes down a class the student shared, for everyone on the course. */
+  async withdrawShared(event: TimetableEvent): Promise<void> {
+    const store = this.services.timetableChanges;
+    const id = SharedClasses.changeIdOf(event);
+    if (!store || !id) return;
+    await store.withdrawShared(id);
+    this.services.prefs.setJSON(PrefKey.sharedClasses, this.mySharedIds().filter((x) => x !== id));
+    await this.refreshChanges();
+  }
+
+  private mySharedIds(): string[] {
+    const saved = this.services.prefs.getJSON<unknown>(PrefKey.sharedClasses, []);
+    return Array.isArray(saved) ? saved.filter((x): x is string => typeof x === 'string') : [];
+  }
+
+  /** Fetches the course's changes now, so a class just shared or taken down shows at once. */
+  private async refreshChanges(): Promise<void> {
+    const store = this.services.timetableChanges;
+    if (!store || !this.audience) return;
+    if (await TimetableChangeRefresh.run(this.audience.courseKey, store, this.services.changeCache)) {
+      this.reloadChanges();
+      void this.refreshCancellations();
+    }
   }
 
   /**
