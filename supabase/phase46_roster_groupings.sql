@@ -1,4 +1,4 @@
--- DCU Timetable — phase 46: a class list can carry more than one grouping, and can be added to.
+-- DCU Live — phase 46: a class list can carry more than one grouping, and can be added to.
 --
 -- RUN ORDER: phase13_roster_allocations.sql → phase23_roster_safeupdate.sql → THIS FILE.
 -- Safe to run more than once. Run it BEFORE the console build that sends `p_mode` goes live:

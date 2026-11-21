@@ -1,4 +1,4 @@
--- DCU Timetable — phase 2: deadline verification, contributor stats, audited actions.
+-- DCU Live — phase 2: deadline verification, contributor stats, audited actions.
 --
 -- RUN ORDER:  schema.sql → phase0_identity.sql → phase1_verdicts.sql → THIS FILE.
 -- Safe to run more than once.

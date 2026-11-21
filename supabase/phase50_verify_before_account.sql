@@ -1,4 +1,4 @@
--- DCU Timetable — phase 50: no account exists until the DCU mailbox has been proved.
+-- DCU Live — phase 50: no account exists until the DCU mailbox has been proved.
 --
 -- RUN ORDER: after phase 37 (pg_cron is enabled there) and phase 45. Safe to run more than once.
 --

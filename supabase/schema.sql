@@ -1,4 +1,4 @@
--- DCU Timetable — Supabase schema.
+-- DCU Live — Supabase schema.
 --
 -- Paste the whole file into the SQL Editor and press Run. It is safe to run more than
 -- once, and safe to run AFTER the phase files — which is the part that matters, and the

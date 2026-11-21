@@ -1,4 +1,4 @@
--- DCU Timetable — phase 3: reports are anonymous to students, visible to admins.
+-- DCU Live — phase 3: reports are anonymous to students, visible to admins.
 --
 -- RUN ORDER: schema.sql → phase0 → phase1 → phase2 → THIS FILE.
 --

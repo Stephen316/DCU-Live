@@ -31,43 +31,4 @@ export const DatePicking = {
   withTime(value: Date, hours: number, minutes: number): Date {
     return new Date(value.getFullYear(), value.getMonth(), value.getDate(), hours, minutes);
   },
-
-  /**
-   * How many times a time wheel repeats its values. The wheels loop as Clock's do: the
-   * values are laid end to end many times over, and a wheel that comes to rest is moved back
-   * to the same value in the middle copy. Odd, so there is a middle; long enough — about
-   * `WHEEL_ROWS` rows — that no fling reaches either end.
-   */
-  wheelCopies(count: number): number {
-    const copies = Math.ceil(WHEEL_ROWS / count);
-    return copies % 2 === 1 ? copies : copies + 1;
-  },
-
-  /** The row that shows `value` in the middle copy of a wheel of `count` values. */
-  wheelRow(value: number, count: number): number {
-    return Math.floor(DatePicking.wheelCopies(count) / 2) * count + wrap(value, count);
-  },
-
-  /** The value a row shows, whichever copy it's in. */
-  wheelValue(row: number, count: number): number {
-    return wrap(row, count);
-  },
-
-  /** The row a wheel has come to rest on at `offset`: the nearest one, kept on the wheel. */
-  restingRow(offset: number, rowHeight: number, rows: number): number {
-    return Math.min(Math.max(Math.round(offset / rowHeight), 0), rows - 1);
-  },
-
-  /** `value` moved `by` rows, round the loop: one up from 23 is 00, one down from 00 is 59. */
-  stepWheel(value: number, by: number, count: number): number {
-    return wrap(value + by, count);
-  },
 };
-
-/** Rows on a time wheel, give or take a copy of its values. */
-const WHEEL_ROWS = 600;
-
-/** `n` folded into 0..count-1, negatives included. */
-function wrap(n: number, count: number): number {
-  return ((n % count) + count) % count;
-}

@@ -1,0 +1,63 @@
+/* Dresses React Wheel Picker as the app's time wheels: 72px columns of 40px rows, the
+   chosen time in title3 on a raised band that runs behind both wheels and the colon.
+   Colours come in as custom properties from TimeWheel.web.tsx, so they follow the theme. */
+
+.time-wheel {
+  display: flex;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-wheel-wheels {
+  width: auto;
+  align-items: center;
+  gap: 4px;
+}
+
+/* One band across the middle row of both wheels, as on the phone. */
+.time-wheel-wheels::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 40px;
+  transform: translateY(-50%);
+  border-radius: 10px;
+  background: var(--time-wheel-band);
+}
+
+.time-wheel-column {
+  position: relative;
+  display: flex;
+  width: 72px;
+}
+
+.time-wheel-row {
+  color: var(--time-wheel-faint);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.time-wheel-band {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.time-wheel-chosen {
+  color: var(--time-wheel-ink);
+}
+
+.time-wheel-colon {
+  position: relative;
+  color: var(--time-wheel-faint);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+/* A keyboard focus shows on the band rather than nowhere. */
+.time-wheel-column [data-rwp]:focus-visible [data-rwp-highlight-wrapper] {
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 2px var(--time-wheel-ink);
+}

@@ -208,7 +208,7 @@ struct TimetableSmallView: View {
     private var emptySymbol: String { entry.hasData ? "checkmark.circle" : "arrow.down.app" }
 
     private var emptyMessage: String {
-        guard entry.hasData else { return "Open DCU Timetable to fill this in" }
+        guard entry.hasData else { return "Open DCU Live to fill this in" }
         return entry.classes.isEmpty ? "No classes today" : "Nothing left today"
     }
 }
@@ -245,7 +245,7 @@ struct TimetableListView: View {
                 WidgetEmptyState(symbol: entry.hasData ? "checkmark.circle" : "arrow.down.app",
                                  message: entry.hasData
                                      ? (entry.classes.isEmpty ? "No classes today" : "Nothing left today")
-                                     : "Open DCU Timetable to fill this in")
+                                     : "Open DCU Live to fill this in")
             } else {
                 WidgetRows(items: shown,
                            isSeparated: { $0.id != entry.highlightedID && $1.id != entry.highlightedID }) { item in

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "DCU Timetable",
+    "name": "DCU Live",
     "slug": "dcu-timetable",
     "owner": "s.harcourt",
     "scheme": "dcutimetable",
@@ -23,7 +23,7 @@
       "supportsTablet": false,
       "requireFullScreen": true,
       "infoPlist": {
-        "CFBundleDisplayName": "DCU Timetable",
+        "CFBundleDisplayName": "DCU Live",
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {

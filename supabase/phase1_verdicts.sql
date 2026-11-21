@@ -1,4 +1,4 @@
--- DCU Timetable — phase 1: definitive verdicts on a class.
+-- DCU Live — phase 1: definitive verdicts on a class.
 --
 -- RUN ORDER:  schema.sql  →  phase0_identity.sql  →  THIS FILE.
 -- Safe to run more than once.

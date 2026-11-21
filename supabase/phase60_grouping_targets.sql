@@ -1,4 +1,4 @@
--- DCU Timetable — phase 60: a timetable change can be for any grouping on the class list, not
+-- DCU Live — phase 60: a timetable change can be for any grouping on the class list, not
 -- only a project team.
 --
 -- RUN ORDER: phase48_team_schedules.sql → THIS FILE. Safe to run more than once. Run it BEFORE

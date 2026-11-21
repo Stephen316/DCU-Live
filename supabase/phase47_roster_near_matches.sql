@@ -1,4 +1,4 @@
--- DCU Timetable — phase 47: adding to a class list asks about near-miss names.
+-- DCU Live — phase 47: adding to a class list asks about near-miss names.
 --
 -- RUN ORDER: phase46_roster_groupings.sql → THIS FILE. Safe to run more than once.
 -- Run it BEFORE the console build that calls roster_merge_preview goes live.
