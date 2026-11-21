@@ -10,7 +10,7 @@ import { LoadingScreen } from '../../ui/LoadingScreen';
 import { DropdownMenu } from '../../ui/DropdownMenu';
 import { useTabBarClearance } from '../../ui/floatingBar';
 import { CardSwap } from '../../ui/CardSwap';
-import { elevation, Space, useTheme, withAlpha } from '../../ui/theme';
+import { Desktop, elevation, Space, useTheme, withAlpha } from '../../ui/theme';
 import { DeadlineCard } from './DeadlineCard';
 import { DeadlineForm, DeadlineSheet } from './DeadlineRows';
 import { DeadlinesModel } from './DeadlinesModel';
@@ -303,7 +303,11 @@ const styles = StyleSheet.create({
   fill: { flex: 1 },
   filter: { maxWidth: '100%' },
   // Pills as the weekday pills of the design this is after: white capsules, the chosen one violet.
-  tabs: { flexDirection: 'row', gap: Space.m, paddingHorizontal: Space.l, paddingTop: Space.xs, paddingBottom: Space.xs },
+  // As wide as the list under it, which ListScroll holds to the readable width on a desktop.
+  tabs: {
+    flexDirection: 'row', gap: Space.m, paddingHorizontal: Space.l, paddingTop: Space.xs, paddingBottom: Space.xs,
+    width: '100%', maxWidth: Desktop.readable, alignSelf: 'center',
+  },
   tabPill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.xs, minHeight: 44, borderRadius: 999 },
   tabOn: { fontWeight: '600' },
   tabCount: { fontWeight: '600', fontVariant: ['tabular-nums'] },

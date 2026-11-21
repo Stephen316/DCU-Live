@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { Deadline, deadlineKindLabel, displayTitle } from '../../core/deadline';
 import { daysBetween, formatTime, monthName, weekdayShort } from '../../core/time';
 import { Avatar, Icon, Txt, useReduceMotion } from '../../ui/components';
@@ -135,6 +135,8 @@ export function DeadlineCard({
           accessibilityHint="Opens it"
           style={({ pressed }) => [
             styles.card,
+            // A mouse has room to spare: on web each card stands taller, not further apart.
+            Platform.OS === 'web' && styles.cardWeb,
             { backgroundColor: theme.surface, opacity: pressed ? 0.85 : 1 },
             elevation(theme),
             // After the elevation, whose dark-mode hairline border it replaces.
@@ -194,6 +196,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: Space.xs, paddingVertical: Space.m + 2, paddingRight: Space.l, paddingLeft: Space.xs,
     borderRadius: Radius.card + 2,
   },
+  cardWeb: { paddingVertical: Space.xl },
   circleHit: { width: MIN_TARGET, height: MIN_TARGET, alignItems: 'center', justifyContent: 'center' },
   circle: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   body: { flex: 1, gap: Space.s },

@@ -8,8 +8,8 @@ import { Radius, Space, Type, useTheme } from './theme';
 
 /** One row of a wheel: a comfortable thumb's height, and what the selection band frames. */
 const ROW = 40;
-/** Rows showing at once: the chosen one and two either side, fading as they turn away. */
-const VISIBLE = 5;
+/** Rows either side of the chosen one, fading as they turn away, unless a wheel asks for fewer. */
+const AROUND = 2;
 const COLUMN = 72;
 
 const HOURS = items(24);
@@ -22,10 +22,12 @@ const MINUTES = items(60);
  * browser has its own in `TimeWheel.web.tsx`. 24-hour, as times are written everywhere else
  * in the app, and every minute, since 23:59 is the commonest hand-in time.
  */
-export function TimeWheel({ hours, minutes, onChange }: {
+export function TimeWheel({ hours, minutes, onChange, around = AROUND }: {
   hours: number;
   minutes: number;
   onChange: (hours: number, minutes: number) => void;
+  /** Rows shown either side of the chosen one: 1 for a card with no room to spare. */
+  around?: number;
 }) {
   const theme = useTheme();
   // Both wheels can come to rest in the same moment, before either change has come back as
@@ -39,17 +41,18 @@ export function TimeWheel({ hours, minutes, onChange }: {
     onChange(latest.current.hours, latest.current.minutes);
   };
   return (
-    <View style={styles.wheels}>
-      <View pointerEvents="none" style={[styles.band, { backgroundColor: theme.raised }]} />
-      <Wheel items={HOURS} value={hours} label="Hour" onChange={(h) => change({ hours: h })} />
+    <View style={[styles.wheels, { height: ROW * (around * 2 + 1) }]}>
+      <View pointerEvents="none" style={[styles.band, { top: ROW * around, backgroundColor: theme.raised }]} />
+      <Wheel items={HOURS} value={hours} label="Hour" around={around} onChange={(h) => change({ hours: h })} />
       <Txt type="title3" color={theme.inkSecondary} style={styles.figure} importantForAccessibility="no" accessibilityElementsHidden>:</Txt>
-      <Wheel items={MINUTES} value={minutes} label="Minutes" onChange={(m) => change({ minutes: m })} />
+      <Wheel items={MINUTES} value={minutes} label="Minutes" around={around} onChange={(m) => change({ minutes: m })} />
     </View>
   );
 }
 
-function Wheel({ items: data, value, label, onChange }: {
+function Wheel({ items: data, value, label, around, onChange }: {
   items: PickerItem<number>[];
+  around: number;
   value: number;
   label: string;
   onChange: (value: number) => void;
@@ -69,7 +72,7 @@ function Wheel({ items: data, value, label, onChange }: {
       accessibilityValue={{ text: pad(value) }}
       accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
       onAccessibilityAction={onAccessibilityAction}
-      style={styles.column}
+      style={[styles.column, { height: ROW * (around * 2 + 1) }]}
     >
       <WheelPicker
         data={data}
@@ -78,7 +81,7 @@ function Wheel({ items: data, value, label, onChange }: {
         // A light tick for each row that crosses the band, as the real wheel clicks.
         onValueChanging={() => { if (Platform.OS === 'ios') void Haptics.selectionAsync(); }}
         itemHeight={ROW}
-        visibleItemCount={VISIBLE}
+        visibleItemCount={around * 2 + 1}
         width={COLUMN}
         enableScrollByTapOnItem
         // The band is drawn once behind both wheels and the colon, not once per wheel.
@@ -98,9 +101,9 @@ function pad(n: number): string {
 }
 
 const styles = StyleSheet.create({
-  wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: ROW * VISIBLE, gap: Space.xs },
+  wheels: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Space.xs },
   // Behind the middle row of both wheels and the colon between them.
-  band: { position: 'absolute', left: 0, right: 0, top: ROW * Math.floor(VISIBLE / 2), height: ROW, borderRadius: Radius.control },
-  column: { width: COLUMN, height: ROW * VISIBLE },
+  band: { position: 'absolute', left: 0, right: 0, height: ROW, borderRadius: Radius.control },
+  column: { width: COLUMN },
   figure: { fontVariant: ['tabular-nums'] },
 });

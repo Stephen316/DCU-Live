@@ -7,8 +7,18 @@ import './TimeWheel.web.css';
 
 /** One row of a wheel: what the selection band frames. */
 const ROW = 40;
-/** Slots on the wheel's ring. Rows fade out in a quarter turn, so about five show. */
-const RING = 16;
+/** Rows either side of the chosen one, unless a wheel asks for fewer. */
+const AROUND = 2;
+
+/**
+ * Slots on the wheel's ring for a wheel `around` rows either side of the middle. The picker
+ * is as tall as its ring is wide, about 2·row / tan(360° / slots), so this solves that for
+ * the rows wanted: 16 slots for five rows, 10 for three.
+ */
+function ring(around: number): number {
+  const radius = (ROW * (around * 2 + 1) - ROW / 4) / 2;
+  return Math.round(360 / (Math.atan(ROW / radius) * 180 / Math.PI));
+}
 
 const HOURS = options(24);
 const MINUTES = options(60);
@@ -20,10 +30,12 @@ const MINUTES = options(60);
  * `TimeWheel.tsx`. 24-hour, as times are written everywhere else in the app, and every
  * minute, since 23:59 is the commonest hand-in time.
  */
-export function TimeWheel({ hours, minutes, onChange }: {
+export function TimeWheel({ hours, minutes, onChange, around = AROUND }: {
   hours: number;
   minutes: number;
   onChange: (hours: number, minutes: number) => void;
+  /** Rows shown either side of the chosen one: 1 for a card with no room to spare. */
+  around?: number;
 }) {
   const theme = useTheme();
   // Both wheels can come to rest in the same moment, before either change has come back as
@@ -44,18 +56,19 @@ export function TimeWheel({ hours, minutes, onChange }: {
   return (
     <div className="time-wheel" style={colours}>
       <WheelPickerWrapper className="time-wheel-wheels">
-        <Wheel label="Hour" options={HOURS} value={hours} onChange={(h) => change({ hours: h })} />
+        <Wheel label="Hour" options={HOURS} value={hours} slots={ring(around)} onChange={(h) => change({ hours: h })} />
         <span className="time-wheel-colon" aria-hidden>:</span>
-        <Wheel label="Minutes" options={MINUTES} value={minutes} onChange={(m) => change({ minutes: m })} />
+        <Wheel label="Minutes" options={MINUTES} value={minutes} slots={ring(around)} onChange={(m) => change({ minutes: m })} />
       </WheelPickerWrapper>
     </div>
   );
 }
 
-function Wheel({ label, options, value, onChange }: {
+function Wheel({ label, options, value, slots, onChange }: {
   label: string;
   options: WheelPickerOption<number>[];
   value: number;
+  slots: number;
   onChange: (value: number) => void;
 }) {
   return (
@@ -66,7 +79,7 @@ function Wheel({ label, options, value, onChange }: {
         value={value}
         onValueChange={onChange}
         infinite
-        visibleCount={RING}
+        visibleCount={slots}
         optionItemHeight={ROW}
         classNames={{ optionItem: 'time-wheel-row', highlightWrapper: 'time-wheel-band', highlightItem: 'time-wheel-chosen' }}
       />
